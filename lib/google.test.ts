@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Event } from "./db";
+import type { Event } from "./model";
 import { describe as describeEvent, fromGoogle, parseDescription, toGoogle } from "./google";
 
 const base: Event = {

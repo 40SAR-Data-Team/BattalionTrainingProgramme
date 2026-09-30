@@ -7,7 +7,8 @@ Next.js (App Router) on Vercel, Neon Postgres, Google Calendar as the live sourc
 | Concern | Owner |
 |---|---|
 | Period grid (P0…ON, REMARKS) ⇄ times | `lib/periods.ts` |
-| DB client, `Event` type, company/category lists | `lib/db.ts` + `schema.sql` |
+| DB client (server only) | `lib/db.ts` + `schema.sql` |
+| `Event` type, company/category lists (safe for client code) | `lib/model.ts` |
 | Google Calendar REST (token, calendars, event mapping, push, pull) | `lib/google.ts` |
 | OpenAI extraction prompt, merge and de-dupe of extracted blocks | `lib/extract.ts` |
 | Search query language | `lib/search.ts` |

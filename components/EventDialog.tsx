@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { CATEGORIES, COMPANIES, type Event } from "@/lib/db";
+import { CATEGORIES, COMPANIES, type Event } from "@/lib/model";
 import { PERIODS, sgDate, spanToTimes, timesToSpan } from "@/lib/periods";
 
 const field = "w-full rounded-lg border border-black/10 px-3 py-2 text-[14px]";

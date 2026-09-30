@@ -1,4 +1,4 @@
-import type { Event } from "./db";
+import type { Event } from "./model";
 
 /** Field prefixes usable in queries, e.g. `loc:stadium`, and the event fields they search. */
 const FIELDS: Record<string, (e: Event) => (string | null)[]> = {

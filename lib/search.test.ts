@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Event } from "./db";
+import type { Event } from "./model";
 import { compile } from "./search";
 
 const ev = (title: string, extra: Partial<Event> = {}): Event => ({

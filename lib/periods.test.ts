@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mondayOf, onGrid, periodIndex, spanToTimes, timesToSpan } from "./periods";
+import { mondayOf, moveTo, onGrid, periodIndex, spanToTimes, timesToSpan } from "./periods";
 
 test("period span <-> times round-trips", () => {
   const t = spanToTimes("2026-09-15", periodIndex("1"), periodIndex("2"));
@@ -26,4 +26,10 @@ test("UTC instants are read in Singapore time", () => {
 test("mondayOf", () => {
   expect(mondayOf("2026-09-20")).toBe("2026-09-14"); // Sunday
   expect(mondayOf("2026-09-14")).toBe("2026-09-14");
+});
+
+test("moveTo keeps the period length and clamps at the last period", () => {
+  const e = { start_at: "2026-09-15T07:00:00+08:00", end_at: "2026-09-15T08:50:00+08:00" };
+  expect(moveTo(e, "2026-09-16", periodIndex("6"))).toEqual({ start_at: "2026-09-16T13:00:00+08:00", end_at: "2026-09-16T14:50:00+08:00" });
+  expect(moveTo(e, "2026-09-16", periodIndex("ON")).end_at).toBe("2026-09-16T22:50:00+08:00");
 });

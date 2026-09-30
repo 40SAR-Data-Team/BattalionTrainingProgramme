@@ -17,7 +17,7 @@ export const PERIODS = [
   { key: "N1", label: "Night Trg 1", start: "19:00", end: "19:50" },
   { key: "N2", label: "Night Trg 2", start: "20:00", end: "20:50" },
   { key: "N3", label: "Night Trg 3", start: "21:00", end: "21:50" },
-  { key: "ON", label: "Overnight Trg", start: "22:00", end: "23:59" },
+  { key: "ON", label: "Overnight Trg", start: "22:00", end: "22:50" },
 ] as const;
 
 export type PeriodKey = (typeof PERIODS)[number]["key"];
@@ -87,4 +87,10 @@ export function mondayOf(date: string): string {
 export function hhmm(iso: string): string {
   const m = sgMinutes(iso);
   return String(Math.floor(m / 60)).padStart(2, "0") + String(m % 60).padStart(2, "0");
+}
+
+/** Moves a timed event to (day, period), keeping its length in periods and clamping at the last period. */
+export function moveTo<T extends { start_at: string; end_at: string }>(e: T, day: string, period: number): T {
+  const [s, t] = timesToSpan(e.start_at, e.end_at);
+  return { ...e, ...spanToTimes(day, period, Math.min(period + t - s, PERIODS.length - 1)) };
 }

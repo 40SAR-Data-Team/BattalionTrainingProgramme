@@ -1,5 +1,5 @@
 "use client";
-import type { Event } from "@/lib/db";
+import type { Event } from "@/lib/model";
 import { PERIODS, addDays, hhmm, onGrid, sgDate, timesToSpan } from "@/lib/periods";
 
 /** Card tint per category, echoing the source programme's colour legend. */
@@ -90,7 +90,7 @@ function Card({ e, showCompanies, onOpen, draggable, style }: {
     <button type="button" style={style} draggable={draggable}
       onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
       onClick={() => onOpen?.(e)}
-      className={`relative z-10 m-0.5 overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left transition active:scale-95 ${TINT[e.category ?? ""] ?? "bg-blue-50 border-primary"} ${draggable ? "cursor-grab" : ""}`}>
+      className={`relative z-10 m-0.5 overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left transition active:scale-95 ${TINT[e.category ?? ""] ?? "bg-blue-50 border-primary"} ${draggable ? "cursor-grab" : ""} ${e.comments?.startsWith("UNCERTAIN") ? "ring-2 ring-orange-400" : ""}`}>
       <div className="font-semibold uppercase">{e.title}</div>
       {!e.all_day && !onGrid(e.start_at, e.end_at) && <div className="text-zinc-600">{hhmm(e.start_at)}–{hhmm(e.end_at)}</div>}
       {e.cond && <div className="text-zinc-600">{e.cond}</div>}

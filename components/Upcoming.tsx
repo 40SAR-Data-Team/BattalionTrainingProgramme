@@ -1,5 +1,5 @@
 "use client";
-import type { Event } from "@/lib/db";
+import type { Event } from "@/lib/model";
 import { addDays, hhmm, sgDate } from "@/lib/periods";
 import { TINT } from "./Timetable";
 

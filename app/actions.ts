@@ -1,7 +1,9 @@
 "use server";
 import { refresh } from "next/cache";
 import { auth } from "@/auth";
-import { CATEGORIES, COMPANIES, sql, type Event } from "@/lib/db";
+import { sql } from "@/lib/db";
+import { CATEGORIES, COMPANIES, type Event } from "@/lib/model";
+import { merge, withoutExisting } from "@/lib/extract";
 import { ConflictError, deleteEverywhere, pull, pushEvent } from "@/lib/google";
 
 export type Result = { ok: true } | { ok: false; message: string };
@@ -38,6 +40,35 @@ export async function saveEvent(e: Event): Promise<Result> {
       for (const c of COMPANIES) await pull(c); // Google's version overwrites the local edit
       return { ok: false, message: `${err.message} — showing the latest version` };
     }
+    return { ok: false, message: (err as Error).message };
+  } finally {
+    refresh();
+  }
+}
+
+/** Saves reviewed upload drafts (merged, minus events that already exist) and appends them to each company calendar. */
+export async function commitDraft(drafts: Event[]): Promise<Result & { created?: number; skipped?: number }> {
+  await requireUser();
+  try {
+    drafts.forEach(validate);
+    const merged = merge(drafts);
+    if (!merged.length) return { ok: true, created: 0, skipped: 0 };
+    const from = new Date(Math.min(...merged.map((e) => +new Date(e.start_at)))).toISOString();
+    const to = new Date(Math.max(...merged.map((e) => +new Date(e.end_at)))).toISOString();
+    const existing = (await sql`select * from events where start_at >= ${from} and start_at <= ${to}`) as Event[];
+    const fresh = withoutExisting(merged, existing);
+    const failed: string[] = [];
+    for (const e of fresh) {
+      await sql`
+        insert into events (id, title, start_at, end_at, all_day, cond, loc, resrc, comments, category, companies)
+        values (${e.id}, ${e.title.trim()}, ${e.start_at}, ${e.end_at}, ${e.all_day}, ${e.cond || null}, ${e.loc || null},
+                ${e.resrc || null}, ${e.comments || null}, ${e.category || null}, ${e.companies})`;
+      // ponytail: a failed push leaves the row app-only; the next edit of that event pushes it again.
+      try { await pushEvent({ ...e, google: {} }); } catch (err) { failed.push(`${e.title}: ${(err as Error).message}`); }
+    }
+    if (failed.length) return { ok: false, message: `Saved, but ${failed.length} failed to reach Google Calendar: ${failed[0]}` };
+    return { ok: true, created: fresh.length, skipped: merged.length - fresh.length };
+  } catch (err) {
     return { ok: false, message: (err as Error).message };
   } finally {
     refresh();

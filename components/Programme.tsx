@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { deleteEvent, saveEvent, type Result } from "@/app/actions";
-import { COMPANIES, type Event } from "@/lib/db";
-import { PERIODS, addDays, mondayOf, sgDate, spanToTimes, timesToSpan } from "@/lib/periods";
+import { COMPANIES, type Event } from "@/lib/model";
+import { addDays, mondayOf, moveTo, sgDate } from "@/lib/periods";
 import { compile } from "@/lib/search";
 import { EventDialog } from "./EventDialog";
 import { Timetable } from "./Timetable";
@@ -42,8 +42,7 @@ export function Programme({ events, syncError }: { events: Event[]; syncError: s
   function move(id: string, day: string, period: number) {
     const e = list.find((x) => x.id === id);
     if (!e || e.all_day) return;
-    const [s, t] = timesToSpan(e.start_at, e.end_at);
-    const moved = { ...e, ...spanToTimes(day, period, Math.min(period + t - s, PERIODS.length - 1)) };
+    const moved = moveTo(e, day, period);
     run(() => saveEvent(moved), moved);
   }
 
@@ -68,14 +67,14 @@ export function Programme({ events, syncError }: { events: Event[]; syncError: s
         </div>
         <div className="ml-auto flex items-center gap-2 text-[14px]">
           {view === "Timetable" && <>
-          <button onClick={() => setWeek(addDays(week, -7))} className="rounded-full px-3 py-1 hover:bg-black/5" aria-label="Previous week">â€¹</button>
-          <span className="min-w-36 text-center">{fmt(week)} â€“ {fmt(addDays(week, 6))}</span>
-          <button onClick={() => setWeek(addDays(week, 7))} className="rounded-full px-3 py-1 hover:bg-black/5" aria-label="Next week">â€º</button>
+          <button onClick={() => setWeek(addDays(week, -7))} className="rounded-full px-3 py-1 hover:bg-black/5" aria-label="Previous week">‹</button>
+          <span className="min-w-36 text-center">{fmt(week)} – {fmt(addDays(week, 6))}</span>
+          <button onClick={() => setWeek(addDays(week, 7))} className="rounded-full px-3 py-1 hover:bg-black/5" aria-label="Next week">›</button>
           <button onClick={() => setWeek(mondayOf(sgDate(new Date())))} className="rounded-full px-3 py-1 text-primary hover:bg-black/5">Today</button>
           </>}
           <button onClick={() => startTransition(() => router.refresh())} disabled={pending}
             className="rounded-full bg-primary px-4 py-1.5 text-white transition active:scale-95 disabled:opacity-50">
-            {pending ? "Syncingâ€¦" : "Refresh"}
+            {pending ? "Syncing…" : "Refresh"}
           </button>
         </div>
       </header>
@@ -88,7 +87,7 @@ export function Programme({ events, syncError }: { events: Event[]; syncError: s
       </main>
       <footer className="sticky bottom-0 z-20 border-t border-black/10 bg-parchment/80 px-4 py-3 backdrop-blur-xl backdrop-saturate-150">
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search activities"
-          placeholder='Search, e.g. cat:"live firing" OR (range AND NOT co:braves)   Â·   fields: cat: loc: cond: resrc: co: title:'
+          placeholder='Search, e.g. cat:"live firing" OR (range AND NOT co:braves)   ·   fields: cat: loc: cond: resrc: co: title:'
           className="h-11 w-full rounded-full border border-black/10 bg-white px-5 text-[17px] outline-none focus:outline-2 focus:outline-primary" />
         {queryError && <p className="mt-1 px-5 text-[12px] text-red-600">{queryError}</p>}
       </footer>

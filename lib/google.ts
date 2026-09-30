@@ -1,4 +1,5 @@
-import { sql, type Event } from "./db";
+import { sql } from "./db";
+import type { Event } from "./model";
 import { addDays, sgDate } from "./periods";
 
 const API = "https://www.googleapis.com/calendar/v3";
