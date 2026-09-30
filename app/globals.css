@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Chrome tokens from DESIGN.md; timetable cards use category colours (see Timetable.tsx). */
+@theme {
+  --color-ink: #1d1d1f;
+  --color-parchment: #f5f5f7;
+  --color-hairline: #e0e0e0;
+  --color-primary: #0066cc;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, Inter, sans-serif;
+}
+
+body {
+  background: #fff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
