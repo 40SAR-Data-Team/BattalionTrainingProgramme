@@ -1,17 +1,12 @@
 "use server";
 import { refresh } from "next/cache";
-import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 import { CATEGORIES, COMPANIES, type Event } from "@/lib/model";
 import { merge, withoutExisting } from "@/lib/extract";
 import { ConflictError, deleteEverywhere, pull, pushEvent } from "@/lib/google";
+import { requireUser } from "@/lib/session";
 
 export type Result = { ok: true } | { ok: false; message: string };
-
-/** Throws unless the caller is signed in (server actions are public POST endpoints). */
-async function requireUser() {
-  if (!(await auth())) throw new Error("Not signed in");
-}
 
 /** Rejects malformed edits before they reach the DB or Google. */
 function validate(e: Event) {
