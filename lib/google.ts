@@ -1,8 +1,8 @@
+import { auth, calendar, type calendar_v3 } from "@googleapis/calendar";
 import { sql } from "./db";
 import type { Event } from "./model";
 import { addDays, sgDate } from "./periods";
 
-const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Singapore";
 /** Google Calendar colorId per category (basil, blueberry, banana, tangerine, graphite). */
 const COLOR: Record<string, string> = {
@@ -12,58 +12,45 @@ const COLOR: Record<string, string> = {
 /** Thrown when Google has a newer version of an event than the app (HTTP 412). */
 export class ConflictError extends Error {}
 
-type GEvent = {
-  id: string; etag: string; status?: string; summary?: string; location?: string; description?: string; colorId?: string;
-  start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string };
-  extendedProperties?: { private?: Record<string, string> };
-};
+type GEvent = calendar_v3.Schema$Event;
 
-let token: { value: string; expires: number } | null = null;
+let client: calendar_v3.Calendar | null = null;
 
-/** Owner access token from GOOGLE_REFRESH_TOKEN, cached until a minute before expiry. */
-async function accessToken(): Promise<string> {
-  if (token && token.expires > Date.now()) return token.value;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    body: new URLSearchParams({
-      client_id: process.env.AUTH_GOOGLE_ID!, client_secret: process.env.AUTH_GOOGLE_SECRET!,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!, grant_type: "refresh_token",
+/** Calendar client signed in as the service account in GOOGLE_SERVICE_ACCOUNT_KEY; retries rate limits. */
+function api(): calendar_v3.Calendar {
+  client ??= calendar({
+    version: "v3",
+    auth: new auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!),
+      scopes: ["https://www.googleapis.com/auth/calendar"],
     }),
+    retryConfig: {
+      retry: 4, retryDelay: 500, statusCodesToRetry: [[403, 403], [429, 429]],
+      httpMethodsToRetry: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+    },
   });
-  if (!res.ok) throw new Error(`Google token refresh failed (${res.status}); reconnect the owner account`);
-  const body = await res.json();
-  token = { value: body.access_token, expires: Date.now() + (body.expires_in - 60) * 1000 };
-  return token.value;
+  return client;
 }
 
-/** Calendar REST call; retries 429 / rate-limit 403 with backoff and returns the raw Response. */
-async function gcal(path: string, init: RequestInit = {}): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(API + path, {
-      ...init,
-      headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json", ...init.headers },
-    });
-    const limited = res.status === 429 || (res.status === 403 && /rateLimitExceeded/.test(await res.clone().text()));
-    if (!limited || attempt >= 4) return res;
-    await new Promise((r) => setTimeout(r, 2 ** attempt * 500 + Math.random() * 250));
-  }
-}
+/** HTTP status of a failed Google API call, if it got a response. */
+const status = (err: unknown) => (err as { status?: number }).status;
 
-/** gcal() that throws on any non-2xx status and parses the JSON body. */
-async function gjson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await gcal(path, init);
-  if (!res.ok) throw new Error(`Google Calendar ${init?.method ?? "GET"} ${path}: ${res.status} ${await res.text()}`);
-  return res.status === 204 ? (undefined as T) : res.json();
-}
+/** True when the failed call's event or calendar is already gone (404/410). */
+const gone = (err: unknown) => status(err) === 404 || status(err) === 410;
 
-/** Calendar id for a company: cached in `calendars`, else found by name, else created. */
+/** Calendar id for a company: cached in `calendars`, else found by name, else created and shared with the owner. */
 export async function calendarId(company: string): Promise<string> {
   const [row] = await sql`select calendar_id from calendars where company = ${company}`;
   if (row) return row.calendar_id;
   const name = `40SAR ${company} Training Program`;
-  const list = await gjson<{ items: { id: string; summary: string }[] }>("/users/me/calendarList?maxResults=250");
-  const id = list.items.find((c) => c.summary === name)?.id
-    ?? (await gjson<{ id: string }>("/calendars", { method: "POST", body: JSON.stringify({ summary: name, timeZone: TZ }) })).id;
+  const { data: list } = await api().calendarList.list({ maxResults: 250 });
+  let id = list.items?.find((c) => c.summary === name)?.id;
+  if (!id) {
+    id = (await api().calendars.insert({ requestBody: { summary: name, timeZone: TZ } })).data.id!;
+    await api().acl.insert({
+      calendarId: id, requestBody: { role: "owner", scope: { type: "user", value: process.env.GOOGLE_CALENDAR_OWNER! } },
+    });
+  }
   await sql`insert into calendars (company, calendar_id) values (${company}, ${id}) on conflict do nothing`;
   return id;
 }
@@ -99,30 +86,39 @@ export function fromGoogle(g: GEvent) {
     title: g.summary ?? "(untitled)", loc: g.location || null, all_day: allDay,
     start_at: allDay ? `${g.start!.date}T00:00:00+08:00` : new Date(g.start!.dateTime!).toISOString(),
     end_at: allDay ? `${addDays(g.end!.date!, -1)}T00:00:00+08:00` : new Date(g.end!.dateTime!).toISOString(),
-    ...parseDescription(g.description),
+    ...parseDescription(g.description ?? ""),
   };
 }
 
+const pick = (g: GEvent) => ({ id: g.id!, etag: g.etag! });
+
 /** Creates or ETag-patches one company copy; returns its new {id, etag}. Throws ConflictError on 412. */
 async function pushCopy(e: Event, company: string, ifMatch = true) {
-  const cal = encodeURIComponent(await calendarId(company));
+  const cal = await calendarId(company);
   const copy = e.google[company];
-  const body = JSON.stringify(toGoogle(e, company));
+  const requestBody = toGoogle(e, company);
   if (copy) {
-    const res = await gcal(`/calendars/${cal}/events/${copy.id}`, { method: "PATCH", body, headers: ifMatch ? { "If-Match": copy.etag } : {} });
-    if (res.status === 412) throw new ConflictError(`"${e.title}" was changed in Google Calendar`);
-    if (res.ok) return pick(await res.json());
-    if (res.status !== 404 && res.status !== 410) throw new Error(`Google PATCH ${res.status}: ${await res.text()}`);
+    try {
+      const { data } = await api().events.patch(
+        { calendarId: cal, eventId: copy.id, requestBody },
+        { headers: ifMatch ? { "If-Match": copy.etag } : {} },
+      );
+      return pick(data);
+    } catch (err) {
+      if (status(err) === 412) throw new ConflictError(`"${e.title}" was changed in Google Calendar`);
+      if (!gone(err)) throw err;
+    }
   }
-  return pick(await gjson<GEvent>(`/calendars/${cal}/events`, { method: "POST", body })); // new, or copy deleted in Google
+  return pick((await api().events.insert({ calendarId: cal, requestBody })).data); // new, or copy deleted in Google
 }
-
-const pick = (g: GEvent) => ({ id: g.id, etag: g.etag });
 
 /** Deletes one company copy; already-gone copies are fine. */
 async function deleteCopy(company: string, copy: { id: string }) {
-  const res = await gcal(`/calendars/${encodeURIComponent(await calendarId(company))}/events/${copy.id}`, { method: "DELETE" });
-  if (!res.ok && res.status !== 404 && res.status !== 410) throw new Error(`Google DELETE ${res.status}: ${await res.text()}`);
+  try {
+    await api().events.delete({ calendarId: await calendarId(company), eventId: copy.id });
+  } catch (err) {
+    if (!gone(err)) throw err;
+  }
 }
 
 /** Writes an event to every company calendar it belongs to, removes stale copies, and saves the new etags. */
@@ -142,25 +138,25 @@ export async function deleteEverywhere(e: Event) {
 }
 
 /** Incremental pull of one company calendar into the DB; Google wins on every change it reports. */
-export async function pull(company: string) {
-  const cal = encodeURIComponent(await calendarId(company));
+export async function pull(company: string): Promise<void> {
+  const cal = await calendarId(company);
   const [{ sync_token }] = await sql`select sync_token from calendars where company = ${company}`;
   const changes: GEvent[] = [];
-  let pageToken = "", nextSyncToken = "";
+  let pageToken: string | undefined, nextSyncToken = "";
   do {
-    const q = new URLSearchParams({ maxResults: "2500", singleEvents: "true", ...(pageToken ? { pageToken } : {}) });
-    if (sync_token) q.set("syncToken", sync_token);
-    else q.set("timeMin", new Date(Date.now() - 90 * 86_400_000).toISOString());
-    const res = await gcal(`/calendars/${cal}/events?${q}`);
-    if (res.status === 410) { // sync token expired: start over with a full pull
-      await sql`update calendars set sync_token = null where company = ${company}`;
+    try {
+      const { data } = await api().events.list({
+        calendarId: cal, maxResults: 2500, singleEvents: true, pageToken,
+        ...(sync_token ? { syncToken: sync_token } : { timeMin: new Date(Date.now() - 90 * 86_400_000).toISOString() }),
+      });
+      changes.push(...(data.items ?? []));
+      pageToken = data.nextPageToken ?? undefined;
+      nextSyncToken = data.nextSyncToken ?? nextSyncToken;
+    } catch (err) {
+      if (status(err) !== 410) throw err;
+      await sql`update calendars set sync_token = null where company = ${company}`; // sync token expired: full pull
       return pull(company);
     }
-    if (!res.ok) throw new Error(`Google list ${res.status}: ${await res.text()}`);
-    const page = await res.json();
-    changes.push(...page.items);
-    pageToken = page.nextPageToken ?? "";
-    nextSyncToken = page.nextSyncToken ?? nextSyncToken;
   } while (pageToken);
 
   for (const g of changes) await applyChange(company, g);
