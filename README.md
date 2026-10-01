@@ -6,6 +6,7 @@ commits it to Google Calendar. After that, the timetable and Google Calendar sta
 
 ## User Guide
 
+- **Sign in.** Enter the access key on the login page. It keeps you signed in for 30 days.
 - **Timetable.** Days are rows and the fixed training periods (0–10, Night Trg 1–3, Overnight) are
   columns, with Remarks on the right. Tabs filter by company: **All, Archer, Braves, Cougar,
   Stallion, Hercules**. Colours follow the programme legend: Outfield, External Training, Physical
@@ -43,17 +44,14 @@ before making changes.
 ### Setup
 
 1. **Neon:** create a database, then run `schema.sql` in the Neon SQL editor.
-2. **Google Cloud:** enable the Google Calendar API and create an OAuth client of type *Web*.
-   Add these redirect URIs:
-   - `https://<your-domain>/api/auth/callback/google` (and the `http://localhost:3000` equivalent)
-     for clerk sign-in.
-   - `http://localhost:3999` for the one-off owner token script.
-3. **Environment:** copy `.env.example` to `.env.local` and fill it in. `ALLOWED_EMAILS` lists the
-   clerks allowed to sign in.
-4. **Owner token:** run `bun --env-file=.env.local scripts/get-token.ts`. Sign in as the Google
-   account that owns the company calendars, then paste the printed `GOOGLE_REFRESH_TOKEN` into
-   your env.
-5. **Run:** `bun install`, then `bun run dev`. Tests: `bun run test`.
+2. **Google Cloud:** enable the Google Calendar API, create a **service account**, and download a
+   JSON key for it. No OAuth client or consent screen is needed.
+3. **Environment:** copy `.env.example` to `.env.local` and fill it in. Paste the whole JSON key
+   on one line as `GOOGLE_SERVICE_ACCOUNT_KEY`. `ACCESS_KEY` is the shared key clerks type on the
+   login page. Changing it signs everyone out.
+4. **Run:** `bun install`, then `bun run dev`. Tests: `bun run test`. On first sync the service
+   account creates the five company calendars and shares them with `GOOGLE_CALENDAR_OWNER` as
+   owner. They then appear in that account's Google Calendar.
 
 ### Deploy (Vercel)
 
