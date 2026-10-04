@@ -18,6 +18,7 @@ let client: calendar_v3.Calendar | null = null;
 
 /** Calendar client signed in as the service account in GOOGLE_SERVICE_ACCOUNT_KEY; retries rate limits. */
 function api(): calendar_v3.Calendar {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
   client ??= calendar({
     version: "v3",
     auth: new auth.GoogleAuth({
