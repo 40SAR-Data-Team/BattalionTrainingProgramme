@@ -64,6 +64,7 @@ export async function extract(file: { name: string; dataUrl: string }, existingT
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-5",
+      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "medium" },
       input: [{ role: "user", content: [{ type: "input_text", text: prompt(existingTitles) }, media] }],
       text: { format: { type: "json_schema", name: "training_programme", strict: true, schema: SCHEMA } },
     }),
