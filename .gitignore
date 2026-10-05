@@ -49,3 +49,8 @@ Scorpion/
 Stallion/
 node_modules
 !.env.example
+
+# service account key files
+key.json
+keys.json
+sar-bntrainprgm-*.json
