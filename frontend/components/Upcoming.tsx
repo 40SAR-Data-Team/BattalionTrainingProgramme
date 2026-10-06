@@ -1,34 +1,42 @@
 "use client";
-import type { Event } from "@/lib/model";
-import { addDays, hhmm, sgDate } from "@/lib/periods";
-import { TINT } from "./Timetable";
+import type { Event } from "@trng/shared/model";
+import { addDays, fmtDay, sgDate, timeLabel } from "@trng/shared/periods";
+import { useSettings } from "./SettingsContext";
+import { CompanyChip, useCategoryColor } from "./Timetable";
 
-/** Table of events from today through the next 60 days, soonest first. */
+const dayLabel = (iso: string) => fmtDay(sgDate(iso), { weekday: "short", day: "numeric", month: "short" });
+
+/** Table of events from today through the configured upcoming window, soonest first. */
 export function Upcoming({ events, onOpen }: { events: Event[]; onOpen: (e: Event) => void }) {
+  const { upcomingDays } = useSettings();
+  const colorOf = useCategoryColor();
   const today = sgDate(new Date());
-  const rows = events.filter((e) => sgDate(e.end_at) >= today && sgDate(e.start_at) <= addDays(today, 60));
+  const rows = events.filter((e) => sgDate(e.end_at) >= today && sgDate(e.start_at) <= addDays(today, upcomingDays));
   const cell = "border-b border-hairline px-3 py-2 align-top";
   return (
-    <div className="overflow-x-auto rounded-[18px] border border-hairline bg-white">
+    <div className="overflow-x-auto rounded-2xl border border-hairline bg-white shadow-sm">
       <table className="w-full min-w-[900px] text-left text-[14px]">
-        <thead className="bg-parchment text-[12px] font-semibold">
-          <tr>{["Date", "Time", "Activity", "Companies", "COND", "LOC", "RESRC", "Category", "Comments"].map((h) => <th key={h} className={cell}>{h}</th>)}</tr>
+        <caption className="px-3 pt-3 pb-1 text-left font-display text-[17px] font-semibold">Next {upcomingDays} days</caption>
+        <thead className="text-[13px] text-muted">
+          <tr>{["Date", "Time", "Activity", "Companies", "COND", "LOC", "RESRC", "Comments"].map((h) => <th key={h} className={`${cell} font-medium`}>{h}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((e) => (
-            <tr key={e.id} onClick={() => onOpen(e)} className="cursor-pointer hover:bg-parchment">
-              <td className={`${cell} whitespace-nowrap`}>{new Date(sgDate(e.start_at) + "T00:00:00Z").toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</td>
-              <td className={`${cell} whitespace-nowrap`}>{e.all_day ? "All day" : `${hhmm(e.start_at)}–${hhmm(e.end_at)}`}</td>
-              <td className={`${cell} font-semibold`}>{e.title}</td>
-              <td className={cell}>{e.companies.join(", ")}</td>
+            <tr key={e.id} onClick={() => onOpen(e)} className="cursor-pointer hover:bg-canvas/50">
+              <td className={`${cell} whitespace-nowrap`}>{dayLabel(e.start_at)}</td>
+              <td className={`${cell} whitespace-nowrap tabular-nums`}>{timeLabel(e)}</td>
+              <td className={cell}>
+                <span className="mr-2 inline-block size-2.5 rounded-full border border-black/10" style={{ background: colorOf(e) }} />
+                <span className="font-semibold">{e.title}</span>
+              </td>
+              <td className={cell}><div className="flex flex-wrap gap-1">{e.companies.map((c) => <CompanyChip key={c} name={c} />)}</div></td>
               <td className={cell}>{e.cond}</td>
               <td className={cell}>{e.loc}</td>
               <td className={cell}>{e.resrc}</td>
-              <td className={cell}>{e.category && <span className={`rounded-full border-l-4 px-2 py-0.5 text-[12px] ${TINT[e.category] ?? ""}`}>{e.category}</span>}</td>
-              <td className={`${cell} whitespace-pre-line text-zinc-600`}>{e.comments}</td>
+              <td className={`${cell} whitespace-pre-line text-muted`}>{e.comments}</td>
             </tr>
           ))}
-          {!rows.length && <tr><td colSpan={9} className="px-3 py-8 text-center text-zinc-500">No upcoming events match.</td></tr>}
+          {!rows.length && <tr><td colSpan={8} className="px-3 py-10 text-center text-muted">Nothing coming up matches. Clear the search or pick another company.</td></tr>}
         </tbody>
       </table>
     </div>

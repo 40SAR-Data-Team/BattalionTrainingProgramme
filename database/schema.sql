@@ -1,4 +1,5 @@
--- Run once against the Neon database (Neon SQL editor or `psql $DATABASE_URL -f schema.sql`).
+-- Database schema. Idempotent: safe to run again after pulling changes (`bun run db:migrate`).
+-- Add new tables/columns here with `if not exists` so existing databases upgrade in place.
 
 -- One row per company: its Google Calendar and the incremental-sync cursor.
 create table if not exists calendars (
@@ -26,3 +27,44 @@ create table if not exists events (
   updated_at timestamptz not null default now()
 );
 create index if not exists events_start_at on events (start_at);
+
+-- User-adjustable settings from the Settings page. Key 'app' holds the whole Settings object;
+-- missing fields fall back to DEFAULT_SETTINGS in shared/settings.ts.
+create table if not exists settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+-- Write-only secrets set from the Settings page (API keys, access key), AES-256-GCM encrypted
+-- with a key derived from ADMIN_KEY. Environment variables of the same name are the fallback.
+create table if not exists secrets (
+  name text primary key,
+  value text not null, -- base64(iv | tag | ciphertext)
+  updated_at timestamptz not null default now()
+);
+
+-- Sanity limits on activities. NOT VALID: enforced on new and changed rows only, so old data never blocks a migration.
+-- The text limits match validate() in backend/events.ts.
+do $$ begin
+  alter table events add constraint events_times check (end_at >= start_at) not valid;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table events add constraint events_companies check (cardinality(companies) > 0) not valid;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table events add constraint events_text_sizes check (
+    char_length(title) between 1 and 500
+    and coalesce(char_length(cond), 0) <= 1000 and coalesce(char_length(loc), 0) <= 1000
+    and coalesce(char_length(resrc), 0) <= 1000 and coalesce(char_length(comments), 0) <= 20000
+  ) not valid;
+exception when duplicate_object then null; end $$;
+
+-- Least privilege: if the app's own login role exists (see docs/developer-guide.md), it may read and write rows in
+-- these tables and nothing else: no creating, altering or dropping tables, no roles. Migrations run as the owner.
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'trngprgm_app') then
+    grant usage on schema public to trngprgm_app;
+    grant select, insert, update, delete on calendars, events, settings, secrets to trngprgm_app;
+  end if;
+end $$;

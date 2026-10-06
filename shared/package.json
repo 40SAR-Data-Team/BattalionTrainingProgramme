@@ -1,0 +1,6 @@
+{
+  "name": "@trng/shared",
+  "private": true,
+  "type": "module",
+  "exports": { "./*": "./*.ts" }
+}

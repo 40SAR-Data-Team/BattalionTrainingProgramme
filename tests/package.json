@@ -1,0 +1,18 @@
+{
+  "name": "@trng/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:fast": "bun test unit integration",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@trng/backend": "workspace:*",
+    "@trng/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0"
+  }
+}

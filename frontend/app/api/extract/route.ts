@@ -1,7 +1,6 @@
-import { sql } from "@/lib/db";
-import { COMPANIES } from "@/lib/model";
-import { extract, toDrafts } from "@/lib/extract";
-import { requireUser } from "@/lib/session";
+import { readUpload } from "@trng/backend/events";
+import { requireUser } from "@trng/backend/session";
+import { publicMessage } from "@trng/shared/errors";
 
 export const maxDuration = 300; // vision extraction of a dense grid can take a minute or more
 
@@ -13,14 +12,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "Upload a JPEG, PNG, WebP or PDF" }, { status: 400 });
   }
   try {
-    const titles = (await sql`select distinct title from events order by title limit 500`).map((r) => r.title as string);
-    let result;
-    try { result = await extract({ name: String(name), dataUrl }, titles); }
-    catch { result = await extract({ name: String(name), dataUrl }, titles); } // one retry for transient/malformed output
-    if ((COMPANIES as readonly string[]).includes(company)) result.company = company;
-    if (result.company === "Unknown") return Response.json({ error: "Couldn't tell which company this is — pick one and retry" }, { status: 422 });
-    return Response.json({ company: result.company, drafts: toDrafts(result) });
+    return Response.json(await readUpload({ name: String(name), dataUrl }, String(company ?? "")));
   } catch (err) {
-    return Response.json({ error: (err as Error).message }, { status: 502 });
+    return Response.json({ error: publicMessage(err) }, { status: 422 });
   }
 }

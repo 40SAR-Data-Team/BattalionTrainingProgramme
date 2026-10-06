@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
-import type { Event } from "./model";
-import { describe as describeEvent, fromGoogle, parseDescription, toGoogle } from "./google";
+import type { Event } from "@trng/shared/model";
+import { DEFAULT_SETTINGS } from "@trng/shared/settings";
+import { describe as describeEvent, fromGoogle, parseDescription, toGoogle as g } from "@trng/backend/google";
+
+const toGoogle = (e: Event, c: string) => g(e, c, DEFAULT_SETTINGS.categories);
 
 const base: Event = {
   id: "11111111-1111-1111-1111-111111111111", title: "ORIENTATION RUN", start_at: "2026-09-15T07:00:00+08:00",

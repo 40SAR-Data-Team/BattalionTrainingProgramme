@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# dependencies (every workspace has its own)
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -14,8 +14,8 @@
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
 /build
@@ -40,17 +40,22 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# company source photos
+# company source photos and sample programmes (restricted: never commit)
+training-programme-example/
 Archer/
 Braves/
 Cougar/
 Hercules/
 Scorpion/
 Stallion/
-node_modules
 !.env.example
 
 # service account key files
 key.json
 keys.json
 sar-bntrainprgm-*.json
+
+# e2e test artefacts
+/tests/test-results
+/tests/playwright-report
+.data/

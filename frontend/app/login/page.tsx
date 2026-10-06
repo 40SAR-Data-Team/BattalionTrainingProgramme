@@ -1,29 +1,45 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { checkKey, SESSION_COOKIE, sessionValue } from "@/lib/session";
+import { getSettings } from "@trng/backend/settings";
+import { checkKey, cookieOpts, issue, SESSION_COOKIE } from "@trng/backend/session";
+import { UnitMark } from "@/components/UnitMark";
 
-/** Sets the session cookie when the pre-shared key is right; otherwise back to the form with an error. */
+/** Sets the session cookie when the access key is right; otherwise back to the form with an error. */
 async function login(form: FormData) {
   "use server";
-  if (!checkKey(String(form.get("key") ?? ""))) redirect("/login?error=1");
-  (await cookies()).set(SESSION_COOKIE, sessionValue(), {
-    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86_400,
-  });
+  if (!(await checkKey(String(form.get("key") ?? "")))) redirect("/login?error=1");
+  const { sessionDays } = await getSettings();
+  const maxAge = sessionDays * 86_400;
+  (await cookies()).set(SESSION_COOKIE, (await issue("session", maxAge))!, cookieOpts(maxAge, "lax"));
   redirect("/");
 }
 
-/** Pre-shared key sign-in for clerks. */
+/** Access-key sign-in: a centred panel on the unit's striped flag. */
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { error } = await searchParams;
+  const { unitName } = await getSettings();
   return (
-    <main className="flex min-h-full flex-1 items-center justify-center bg-parchment p-4">
-      <form action={login} className="flex w-full max-w-xs flex-col gap-3 text-[14px]">
-        <h1 className="text-[21px] font-semibold tracking-tight">40SAR Training Programme</h1>
-        <input name="key" type="password" required autoFocus placeholder="Access key" aria-label="Access key"
-          className="rounded-full border border-black/10 bg-white px-4 py-2" />
-        {error && <p role="alert" className="text-red-600">Wrong key</p>}
-        <button className="rounded-full bg-primary px-4 py-2 text-white transition active:scale-95">Sign in</button>
-      </form>
+    <main className="grid min-h-screen flex-1 place-items-center px-4 py-14">
+      <div className="w-full max-w-xl text-center">
+        <UnitMark name={unitName} className="mx-auto mb-8 size-24 text-[28px]" />
+        <h1 className="font-display text-[44px] leading-[1.05] font-bold tracking-tight text-heading text-balance sm:text-[56px]">
+          Good day, Commander
+        </h1>
+        <p className="mt-3 text-[17px] text-heading/80">{unitName} training programme</p>
+        <form action={login} className="mt-10 flex flex-wrap justify-center gap-3">
+          <label htmlFor="key" className="sr-only">Access key</label>
+          <input id="key" name="key" type="password" required autoFocus autoComplete="current-password" placeholder="Access key"
+            aria-invalid={!!error} aria-describedby={error ? "login-error" : undefined}
+            className="h-12 min-w-0 flex-[1_1_18rem] rounded-full border border-heading/20 bg-white px-6 text-center text-[17px] shadow-sm" />
+          <button className="h-12 rounded-full bg-primary px-8 text-[17px] font-semibold text-white transition hover:bg-primary-dark active:scale-95">
+            Sign in
+          </button>
+        </form>
+        {error && <p id="login-error" role="alert" className="mt-4 text-[15px] font-medium text-primary">That access key is not right.</p>}
+        <p className="mx-auto mt-12 max-w-sm text-[13px] leading-relaxed text-heading/70">
+          Ask your training clerk for the access key. It keeps this browser signed in, so don&apos;t use it on a shared computer.
+        </p>
+      </div>
     </main>
   );
 }

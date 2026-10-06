@@ -1,43 +1,29 @@
-/**
- * The fixed period grid used by the source training programmes (rows = days, columns = periods).
- * Times are Singapore time (UTC+8, no DST).
- */
-export const PERIODS = [
-  { key: "0", label: "0", start: "05:30", end: "06:50" },
-  { key: "1", label: "1", start: "07:00", end: "07:50" },
-  { key: "2", label: "2", start: "08:00", end: "08:50" },
-  { key: "3", label: "3", start: "09:00", end: "09:50" },
-  { key: "4", label: "4", start: "10:00", end: "10:50" },
-  { key: "5", label: "5", start: "11:00", end: "11:50" },
-  { key: "6", label: "6", start: "13:00", end: "13:50" },
-  { key: "7", label: "7", start: "14:00", end: "14:50" },
-  { key: "8", label: "8", start: "15:00", end: "15:50" },
-  { key: "9", label: "9", start: "16:00", end: "16:50" },
-  { key: "10", label: "10", start: "17:00", end: "17:50" },
-  { key: "N1", label: "Night Trg 1", start: "19:00", end: "19:50" },
-  { key: "N2", label: "Night Trg 2", start: "20:00", end: "20:50" },
-  { key: "N3", label: "Night Trg 3", start: "21:00", end: "21:50" },
-  { key: "ON", label: "Overnight Trg", start: "22:00", end: "22:50" },
-] as const;
+import type { Period } from "./model";
 
-export type PeriodKey = (typeof PERIODS)[number]["key"];
+/**
+ * Time helpers for the period grid used by the source training programmes (rows = days, columns = periods).
+ * The grid itself is a setting, so every grid function takes `periods` first.
+ * ponytail: times are Singapore time (UTC+8, no DST); add a timezone setting if another unit ever needs one.
+ */
+
+type Periods = readonly Period[];
 
 const TZ = "+08:00";
 const DAY_MS = 86_400_000;
 const toMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
 
-/** Index of a period key ("0".."10", "N1".."N3", "ON") in PERIODS; throws if unknown. */
-export function periodIndex(key: string): number {
-  const i = PERIODS.findIndex((p) => p.key === key);
+/** Index of a period key (e.g. "N1") in `periods`; throws if unknown. */
+export function periodIndex(periods: Periods, key: string): number {
+  const i = periods.findIndex((p) => p.key === key);
   if (i < 0) throw new Error(`Unknown period "${key}"`);
   return i;
 }
 
 /** Converts a "YYYY-MM-DD" date and inclusive period indexes to {start_at, end_at} (+08:00 ISO). */
-export function spanToTimes(date: string, startIdx: number, endIdx: number) {
+export function spanToTimes(periods: Periods, date: string, startIdx: number, endIdx: number) {
   return {
-    start_at: `${date}T${PERIODS[startIdx].start}:00${TZ}`,
-    end_at: `${date}T${PERIODS[endIdx].end}:00${TZ}`,
+    start_at: `${date}T${periods[startIdx].start}:00${TZ}`,
+    end_at: `${date}T${periods[endIdx].end}:00${TZ}`,
   };
 }
 
@@ -54,21 +40,21 @@ function sgMinutes(iso: string): number {
 
 /** Inclusive [startIdx, endIdx] of the periods a timed event overlaps.
  * Off-grid times (e.g. a Google edit to 12:15) snap to the nearest period. */
-export function timesToSpan(start_at: string, end_at: string): [number, number] {
+export function timesToSpan(periods: Periods, start_at: string, end_at: string): [number, number] {
   const s = sgMinutes(start_at);
   // ponytail: multi-day timed events render on their start day only, ending at the last period.
   const e = sgDate(end_at) > sgDate(start_at) ? 24 * 60 : sgMinutes(end_at);
-  const hits = PERIODS.map((p, i) => [i, toMin(p.start) < e && toMin(p.end) > s] as const).filter(([, hit]) => hit);
+  const hits = periods.map((p, i) => [i, toMin(p.start) < e && toMin(p.end) > s] as const).filter(([, hit]) => hit);
   if (hits.length) return [hits[0][0], hits[hits.length - 1][0]];
-  const nearest = PERIODS.reduce((best, p, i) =>
-    Math.abs(toMin(p.start) - s) < Math.abs(toMin(PERIODS[best].start) - s) ? i : best, 0);
+  const nearest = periods.reduce((best, p, i) =>
+    Math.abs(toMin(p.start) - s) < Math.abs(toMin(periods[best].start) - s) ? i : best, 0);
   return [nearest, nearest];
 }
 
 /** True if a timed event starts and ends exactly on period boundaries. */
-export function onGrid(start_at: string, end_at: string): boolean {
-  const [a, b] = timesToSpan(start_at, end_at);
-  const t = spanToTimes(sgDate(start_at), a, b);
+export function onGrid(periods: Periods, start_at: string, end_at: string): boolean {
+  const [a, b] = timesToSpan(periods, start_at, end_at);
+  const t = spanToTimes(periods, sgDate(start_at), a, b);
   return new Date(t.start_at).getTime() === new Date(start_at).getTime() && new Date(t.end_at).getTime() === new Date(end_at).getTime();
 }
 
@@ -89,8 +75,19 @@ export function hhmm(iso: string): string {
   return String(Math.floor(m / 60)).padStart(2, "0") + String(m % 60).padStart(2, "0");
 }
 
+/** Start of a "YYYY-MM-DD" day, Singapore time, as ISO; used for all-day events. */
+export const sgMidnight = (date: string) => `${date}T00:00:00${TZ}`;
+
+/** "All day" or "HHMM–HHMM", as shown in lists. */
+export const timeLabel = (e: { all_day: boolean; start_at: string; end_at: string }) =>
+  e.all_day ? "All day" : `${hhmm(e.start_at)}–${hhmm(e.end_at)}`;
+
+/** Formats a "YYYY-MM-DD" date for display, e.g. fmtDay(d, { weekday: "short" }) → "Mon". */
+export const fmtDay = (date: string, opts: Intl.DateTimeFormatOptions) =>
+  new Date(date + "T00:00:00Z").toLocaleDateString("en-SG", { ...opts, timeZone: "UTC" });
+
 /** Moves a timed event to (day, period), keeping its length in periods and clamping at the last period. */
-export function moveTo<T extends { start_at: string; end_at: string }>(e: T, day: string, period: number): T {
-  const [s, t] = timesToSpan(e.start_at, e.end_at);
-  return { ...e, ...spanToTimes(day, period, Math.min(period + t - s, PERIODS.length - 1)) };
+export function moveTo<T extends { start_at: string; end_at: string }>(periods: Periods, e: T, day: string, period: number): T {
+  const [s, t] = timesToSpan(periods, e.start_at, e.end_at);
+  return { ...e, ...spanToTimes(periods, day, period, Math.min(period + t - s, periods.length - 1)) };
 }

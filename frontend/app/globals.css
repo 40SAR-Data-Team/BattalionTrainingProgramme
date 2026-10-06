@@ -1,16 +1,41 @@
 @import "tailwindcss";
 
-/* Chrome tokens from DESIGN.md; timetable cards use category colours (see Timetable.tsx). */
+/* Tokens from DESIGN.md. Card and chip colours come from Settings (inline styles). */
 @theme {
+  --color-canvas: #fef3c6;      /* amber-100: the unit's yellow */
+  --color-stripe: #fca5a580;    /* red-300 at 50%: the three flag stripes */
   --color-ink: #1d1d1f;
-  --color-parchment: #f5f5f7;
-  --color-hairline: #e0e0e0;
-  --color-primary: #0066cc;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, Inter, sans-serif;
+  --color-muted: #6e6e73;
+  --color-heading: #7b3306;     /* amber-900 */
+  --color-hairline: #eadfbf;
+  --color-primary: #b42318;     /* regimental red */
+  --color-primary-dark: #8f1c13;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), var(--font-barlow), system-ui, sans-serif;
 }
 
 body {
-  background: #fff;
   color: var(--color-ink);
   font-family: var(--font-sans);
+  background: var(--color-canvas);
+}
+
+/* The 40th's flag: three vertical red stripes on yellow (narrow, wide, narrow), as on 40hercules. */
+.stripes {
+  background:
+    linear-gradient(90deg,
+      transparent 34%, var(--color-stripe) 34% 41%,
+      transparent 41% 42%, var(--color-stripe) 42% 58%,
+      transparent 58% 59%, var(--color-stripe) 59% 66%,
+      transparent 66%) fixed,
+    var(--color-canvas);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }

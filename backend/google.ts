@@ -1,36 +1,45 @@
 import { auth, calendar, type calendar_v3 } from "@googleapis/calendar";
+import type { Category, Event } from "@trng/shared/model";
+import { addDays, sgDate, sgMidnight } from "@trng/shared/periods";
+import { publicMessage, UserError } from "@trng/shared/errors";
+import { calendarName } from "@trng/shared/settings";
 import { sql } from "./db";
-import type { Event } from "./model";
-import { addDays, sgDate } from "./periods";
+import { secret } from "./secrets";
+import { getSettings } from "./settings";
 
 const TZ = "Asia/Singapore";
-/** Google Calendar colorId per category (basil, blueberry, banana, tangerine, graphite). */
-const COLOR: Record<string, string> = {
-  Outfield: "10", "External Training": "9", "Physical Training": "5", "Live Firing/HRA": "6", "Off/Leave/Weekend": "8",
-};
 
 /** Thrown when Google has a newer version of an event than the app (HTTP 412). */
-export class ConflictError extends Error {}
+export class ConflictError extends UserError {}
 
 type GEvent = calendar_v3.Schema$Event;
 
-let client: calendar_v3.Calendar | null = null;
+let client: { key: string; api: calendar_v3.Calendar } | null = null;
 
-/** Calendar client signed in as the service account in GOOGLE_SERVICE_ACCOUNT_KEY; retries rate limits. */
-function api(): calendar_v3.Calendar {
-  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
-  client ??= calendar({
+/** Calendar client signed in as the service account key from Settings or GOOGLE_SERVICE_ACCOUNT_KEY; retries rate limits.
+ * GOOGLE_API_ROOT points it at a fake Calendar server (tests); that server takes no OAuth. */
+async function api(): Promise<calendar_v3.Calendar> {
+  const key = await secret("GOOGLE_SERVICE_ACCOUNT_KEY");
+  const root = process.env.GOOGLE_API_ROOT;
+  if (!key && !root) throw new UserError("No Google service account key: set it in Settings or GOOGLE_SERVICE_ACCOUNT_KEY");
+  if (client && client.key === (key ?? "")) return client.api;
+  const api = calendar({
     version: "v3",
-    auth: new auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!),
-      scopes: ["https://www.googleapis.com/auth/calendar"],
-    }),
+    ...(root
+      ? { rootUrl: root, auth: "fake" }
+      : { auth: new auth.GoogleAuth({ credentials: parseKey(key!), scopes: ["https://www.googleapis.com/auth/calendar"] }) }),
     retryConfig: {
       retry: 4, retryDelay: 500, statusCodesToRetry: [[403, 403], [429, 429]],
       httpMethodsToRetry: ["GET", "POST", "PATCH", "PUT", "DELETE"],
     },
   });
-  return client;
+  client = { key: key ?? "", api };
+  return api;
+}
+
+/** Parses the service account JSON with a readable error instead of a bare JSON.parse failure. */
+function parseKey(key: string) {
+  try { return JSON.parse(key); } catch { throw new UserError("The Google service account key is not valid JSON — paste the whole key file"); }
 }
 
 /** HTTP status of a failed Google API call, if it got a response. */
@@ -43,14 +52,15 @@ const gone = (err: unknown) => status(err) === 404 || status(err) === 410;
 export async function calendarId(company: string): Promise<string> {
   const [row] = await sql`select calendar_id from calendars where company = ${company}`;
   if (row) return row.calendar_id;
-  const name = `40SAR ${company} Training Program`;
-  const { data: list } = await api().calendarList.list({ maxResults: 250 });
+  const s = await getSettings();
+  const name = calendarName(s, company);
+  const g = await api();
+  const { data: list } = await g.calendarList.list({ maxResults: 250 });
   let id = list.items?.find((c) => c.summary === name)?.id;
   if (!id) {
-    id = (await api().calendars.insert({ requestBody: { summary: name, timeZone: TZ } })).data.id!;
-    await api().acl.insert({
-      calendarId: id, requestBody: { role: "owner", scope: { type: "user", value: process.env.GOOGLE_CALENDAR_OWNER! } },
-    });
+    id = (await g.calendars.insert({ requestBody: { summary: name, timeZone: TZ } })).data.id!;
+    const owner = s.calendarOwner || process.env.GOOGLE_CALENDAR_OWNER;
+    if (owner) await g.acl.insert({ calendarId: id, requestBody: { role: "owner", scope: { type: "user", value: owner } } });
   }
   await sql`insert into calendars (company, calendar_id) values (${company}, ${id}) on conflict do nothing`;
   return id;
@@ -69,13 +79,13 @@ export function parseDescription(text = ""): Pick<Event, "cond" | "resrc" | "cat
   return { cond: field("COND"), resrc: field("RESRC"), category: field("CATEGORY"), comments: rest.join("\n---\n") || null };
 }
 
-/** Google event resource for one company's copy of an app event. */
-export function toGoogle(e: Event, company: string) {
+/** Google event resource for one company's copy of an app event; `categories` supplies the Google colour. */
+export function toGoogle(e: Event, company: string, categories: Category[]) {
   const when = e.all_day
     ? { start: { date: sgDate(e.start_at) }, end: { date: addDays(sgDate(e.end_at), 1) } } // Google's all-day end is exclusive
     : { start: { dateTime: e.start_at, timeZone: TZ }, end: { dateTime: e.end_at, timeZone: TZ } };
   return {
-    summary: e.title, location: e.loc ?? "", description: describe(e), colorId: COLOR[e.category ?? ""],
+    summary: e.title, location: e.loc ?? "", description: describe(e), colorId: categories.find((c) => c.name === e.category)?.googleColorId,
     extendedProperties: { private: { trngEventId: e.id, company } }, ...when,
   };
 }
@@ -84,9 +94,9 @@ export function toGoogle(e: Event, company: string) {
 export function fromGoogle(g: GEvent) {
   const allDay = !!g.start?.date;
   return {
-    title: g.summary ?? "(untitled)", loc: g.location || null, all_day: allDay,
-    start_at: allDay ? `${g.start!.date}T00:00:00+08:00` : new Date(g.start!.dateTime!).toISOString(),
-    end_at: allDay ? `${addDays(g.end!.date!, -1)}T00:00:00+08:00` : new Date(g.end!.dateTime!).toISOString(),
+    title: g.summary || "(untitled)", loc: g.location || null, all_day: allDay,
+    start_at: allDay ? sgMidnight(g.start!.date!) : new Date(g.start!.dateTime!).toISOString(),
+    end_at: allDay ? sgMidnight(addDays(g.end!.date!, -1)) : new Date(g.end!.dateTime!).toISOString(),
     ...parseDescription(g.description ?? ""),
   };
 }
@@ -97,10 +107,10 @@ const pick = (g: GEvent) => ({ id: g.id!, etag: g.etag! });
 async function pushCopy(e: Event, company: string, ifMatch = true) {
   const cal = await calendarId(company);
   const copy = e.google[company];
-  const requestBody = toGoogle(e, company);
+  const requestBody = toGoogle(e, company, (await getSettings()).categories);
   if (copy) {
     try {
-      const { data } = await api().events.patch(
+      const { data } = await (await api()).events.patch(
         { calendarId: cal, eventId: copy.id, requestBody },
         { headers: ifMatch ? { "If-Match": copy.etag } : {} },
       );
@@ -110,13 +120,13 @@ async function pushCopy(e: Event, company: string, ifMatch = true) {
       if (!gone(err)) throw err;
     }
   }
-  return pick((await api().events.insert({ calendarId: cal, requestBody })).data); // new, or copy deleted in Google
+  return pick((await (await api()).events.insert({ calendarId: cal, requestBody })).data); // new, or copy deleted in Google
 }
 
 /** Deletes one company copy; already-gone copies are fine. */
 async function deleteCopy(company: string, copy: { id: string }) {
   try {
-    await api().events.delete({ calendarId: await calendarId(company), eventId: copy.id });
+    await (await api()).events.delete({ calendarId: await calendarId(company), eventId: copy.id });
   } catch (err) {
     if (!gone(err)) throw err;
   }
@@ -142,13 +152,14 @@ export async function deleteEverywhere(e: Event) {
 export async function pull(company: string): Promise<void> {
   const cal = await calendarId(company);
   const [{ sync_token }] = await sql`select sync_token from calendars where company = ${company}`;
+  const { lookbackDays } = await getSettings();
   const changes: GEvent[] = [];
   let pageToken: string | undefined, nextSyncToken = "";
   do {
     try {
-      const { data } = await api().events.list({
+      const { data } = await (await api()).events.list({
         calendarId: cal, maxResults: 2500, singleEvents: true, pageToken,
-        ...(sync_token ? { syncToken: sync_token } : { timeMin: new Date(Date.now() - 90 * 86_400_000).toISOString() }),
+        ...(sync_token ? { syncToken: sync_token } : { timeMin: new Date(Date.now() - lookbackDays * 86_400_000).toISOString() }),
       });
       changes.push(...(data.items ?? []));
       pageToken = data.nextPageToken ?? undefined;
@@ -204,11 +215,11 @@ async function applyChange(company: string, g: GEvent) {
 }
 
 /** Pulls every company calendar; returns an error message instead of throwing so pages still render. */
-export async function syncAll(companies: readonly string[]): Promise<string | null> {
+export async function syncAll(): Promise<string | null> {
   try {
-    for (const c of companies) await pull(c);
+    for (const c of (await getSettings()).companies) await pull(c.name);
     return null;
   } catch (err) {
-    return (err as Error).message;
+    return publicMessage(err);
   }
 }

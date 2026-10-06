@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { mondayOf, moveTo, onGrid, periodIndex, spanToTimes, timesToSpan } from "./periods";
+import { mondayOf, moveTo as move, onGrid as grid, periodIndex as idx, spanToTimes as span, timesToSpan as toSpan } from "@trng/shared/periods";
+import { DEFAULT_SETTINGS } from "@trng/shared/settings";
+
+// Default 40SAR grid: 0, 1..10, N1..N3, ON.
+const P = DEFAULT_SETTINGS.periods;
+const periodIndex = (k: string) => idx(P, k);
+const spanToTimes = (d: string, a: number, b: number) => span(P, d, a, b);
+const timesToSpan = (a: string, b: string) => toSpan(P, a, b);
+const onGrid = (a: string, b: string) => grid(P, a, b);
+const moveTo = <T extends { start_at: string; end_at: string }>(e: T, d: string, i: number) => move(P, e, d, i);
 
 test("period span <-> times round-trips", () => {
   const t = spanToTimes("2026-09-15", periodIndex("1"), periodIndex("2"));
