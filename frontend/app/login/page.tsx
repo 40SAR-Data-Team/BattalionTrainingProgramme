@@ -1,16 +1,15 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSettings } from "@trng/backend/settings";
-import { checkKey, cookieOpts, issue, SESSION_COOKIE } from "@trng/backend/session";
+import { checkKey, cookieOpts, issue, SESSION_COOKIE, SESSION_MAX_AGE } from "@trng/backend/session";
+import { LoginForm } from "@/components/TabSession";
 import { UnitMark } from "@/components/UnitMark";
 
 /** Sets the session cookie when the access key is right; otherwise back to the form with an error. */
 async function login(form: FormData) {
   "use server";
   if (!(await checkKey(String(form.get("key") ?? "")))) redirect("/login?error=1");
-  const { sessionDays } = await getSettings();
-  const maxAge = sessionDays * 86_400;
-  (await cookies()).set(SESSION_COOKIE, (await issue("session", maxAge))!, cookieOpts(maxAge, "lax"));
+  (await cookies()).set(SESSION_COOKIE, (await issue("session", SESSION_MAX_AGE))!, cookieOpts("lax"));
   redirect("/");
 }
 
@@ -26,7 +25,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           Good day, Commander
         </h1>
         <p className="mt-3 text-[17px] text-heading/80">{unitName} training programme</p>
-        <form action={login} className="mt-10 flex flex-wrap justify-center gap-3">
+        <LoginForm action={login} className="mt-10 flex flex-wrap justify-center gap-3">
           <label htmlFor="key" className="sr-only">Access key</label>
           <input id="key" name="key" type="password" required autoFocus autoComplete="current-password" placeholder="Access key"
             aria-invalid={!!error} aria-describedby={error ? "login-error" : undefined}
@@ -34,7 +33,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <button className="h-12 rounded-full bg-primary px-8 text-[17px] font-semibold text-white transition hover:bg-primary-dark active:scale-95">
             Sign in
           </button>
-        </form>
+        </LoginForm>
         {error && <p id="login-error" role="alert" className="mt-4 text-[15px] font-medium text-primary">That access key is not right.</p>}
         <p className="mx-auto mt-12 max-w-sm text-[13px] leading-relaxed text-heading/70">
           Ask your training clerk for the access key. It keeps this browser signed in, so don&apos;t use it on a shared computer.

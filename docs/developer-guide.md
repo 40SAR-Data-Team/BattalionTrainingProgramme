@@ -123,7 +123,7 @@ block a migration. The text limits match `validate()` in `backend/events.ts`.
 ## Security model
 
 - **Sign-in cookies** are `kind.issued.expires.nonce.HMAC`, signed with `ACCESS_KEY` (session) or `ADMIN_KEY`
-  (admin unlock). The server checks the signature, the expiry (`sessionDays`, one hour for admin) and the
+  (admin unlock). The server checks the signature, the expiry (`SESSION_MAX_AGE`, 3 hours; one hour for admin) and, for sessions, the idle time (`SESSION_IDLE`, 15 minutes). The cookie is `kind.issued.expires.lastSeen.nonce.HMAC`; `proxy.ts` (pages) and `requireUser()` (actions, API) renew `lastSeen` on each request, never the expiry. The session cookie has no `Max-Age`, so the browser drops it when it closes. `TabSession.tsx` also signs out a tab without the `sessionStorage` flag set by the login form, so a closed tab needs a new sign-in (convenience only; the timeouts are the security) and the
   `revokedBefore` time in the `settings` row `auth`. **Sign everyone out** sets that time. Changing a key also voids
   its cookies. Everyone shares one access key, so one person can't be signed out alone.
 - **Headers**: `proxy.ts` sets a per-request nonce CSP (`script-src 'nonce-…' 'strict-dynamic'`,

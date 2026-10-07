@@ -18,7 +18,7 @@ in either place shows up in the other.
 
 1. Open the app. You land on the sign-in page.
 2. Type the **access key** your training clerk gave you, then press **Sign in**.
-3. The browser stays signed in for 30 days (an admin can change this). Don't sign in on a shared computer.
+3. You stay signed in while you work: 15 minutes without activity, 3 hours in total, or closing the tab, ends the session. Then sign in again.
 
 If the key is refused, check it with your clerk. Keys can be changed, and changing one signs everyone out.
 

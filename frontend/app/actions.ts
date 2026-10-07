@@ -58,7 +58,7 @@ export async function deleteEvent(id: string): Promise<Result> {
 export async function unlockSettings(key: string): Promise<Result> {
   return act(requireUser, async () => {
     if (!checkAdminKey(key)) throw new UserError("That admin key is not right");
-    (await cookies()).set(ADMIN_COOKIE, (await issue("admin", ADMIN_MAX_AGE))!, cookieOpts(ADMIN_MAX_AGE, "strict"));
+    (await cookies()).set(ADMIN_COOKIE, (await issue("admin", ADMIN_MAX_AGE))!, cookieOpts("strict", ADMIN_MAX_AGE));
   });
 }
 

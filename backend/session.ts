@@ -10,12 +10,16 @@ export const SESSION_COOKIE = "session";
 export const ADMIN_COOKIE = "admin";
 /** How long the admin unlock lasts, in seconds. */
 export const ADMIN_MAX_AGE = 60 * 60;
+/** Longest a sign-in is honoured by the server, in seconds. The cookie itself ends with the browser session. */
+export const SESSION_MAX_AGE = 3 * 60 * 60;
+/** A session cookie unused for this long (seconds) is void. Each valid request renews it, up to SESSION_MAX_AGE. */
+export const SESSION_IDLE = 15 * 60;
 
 /** Which cookie: "session" is signed with ACCESS_KEY, "admin" with ADMIN_KEY. */
 type Kind = "session" | "admin";
 
-/** Cookie options shared by the session and admin cookies. */
-export const cookieOpts = (maxAge: number, sameSite: "lax" | "strict") =>
+/** Cookie options shared by the session and admin cookies. Omit `maxAge` for a browser-session cookie. */
+export const cookieOpts = (sameSite: "lax" | "strict", maxAge?: number) =>
   ({ httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite, path: "/", maxAge });
 
 /** Constant-time string comparison; false if either side is missing. */
@@ -37,9 +41,16 @@ async function revokedBefore(): Promise<number> {
   return Number(row?.value?.revokedBefore ?? 0);
 }
 
+/** Signs `kind.issuedMs.expiresMs.seenMs.nonce` with the key for `kind`. */
+function seal(key: string, kind: Kind, issued: number, expires: number, seen: number): string {
+  const body = [kind, issued, expires, seen, randomBytes(16).toString("base64url")].join(".");
+  return `${body}.${sign(key, body)}`;
+}
+
 /**
- * Issues a cookie value `kind.issuedMs.expiresMs.nonce.signature`. The server checks the expiry and signature,
- * so a copied cookie stops working when it expires, when the key changes, or after revokeAll().
+ * Issues a cookie value `kind.issuedMs.expiresMs.lastSeenMs.nonce.signature`. The server checks the expiry, the idle
+ * time (session only) and the signature, so a copied cookie stops working when it expires, goes idle, when the key
+ * changes, or after revokeAll().
  *
  * Args:
  *   kind: Which cookie.
@@ -52,8 +63,7 @@ export async function issue(kind: Kind, maxAge: number): Promise<string | undefi
   const key = await keyFor(kind);
   if (!key) return undefined;
   const now = Date.now();
-  const body = [kind, now, now + maxAge * 1000, randomBytes(16).toString("base64url")].join(".");
-  return `${body}.${sign(key, body)}`;
+  return seal(key, kind, now, now + maxAge * 1000, now);
 }
 
 /**
@@ -66,10 +76,28 @@ export async function issue(kind: Kind, maxAge: number): Promise<string | undefi
 export async function verify(kind: Kind, value: string | undefined): Promise<boolean> {
   const key = await keyFor(kind);
   const parts = value?.split(".") ?? [];
-  if (!key || parts.length !== 5) return false;
-  const [k, issued, expires, , sig] = parts;
-  return same(sig, sign(key, parts.slice(0, 4).join(".")))
-    && k === kind && Number(expires) > Date.now() && Number(issued) >= (await revokedBefore());
+  if (!key || parts.length !== 6) return false;
+  const [k, issued, expires, seen, , sig] = parts;
+  const idle = kind === "session" ? SESSION_IDLE * 1000 : Infinity;
+  return same(sig, sign(key, parts.slice(0, 5).join(".")))
+    && k === kind && Number(expires) > Date.now() && Number(seen) + idle > Date.now()
+    && Number(issued) >= (await revokedBefore());
+}
+
+/**
+ * Slides the idle window of a session cookie: the same cookie with a fresh last-seen time. The absolute expiry is kept.
+ *
+ * Args:
+ *   value: The session cookie value from the request, if any.
+ *
+ * Returns:
+ *   The renewed cookie value, or undefined if `value` is not a valid session.
+ */
+export async function renew(value: string | undefined): Promise<string | undefined> {
+  const key = await keyFor("session");
+  if (!key || !(await verify("session", value))) return undefined;
+  const [, issued, expires] = value!.split(".");
+  return seal(key, "session", Number(issued), Number(expires), Date.now());
 }
 
 /** Signs every browser out: voids all session and admin cookies issued until now. */
@@ -92,9 +120,13 @@ export async function isSignedIn(value: string | undefined): Promise<boolean> {
   return verify("session", value);
 }
 
-/** Throws unless the request carries a valid session cookie (server actions and routes are public endpoints). */
+/** Throws unless the request carries a valid session cookie (server actions and routes are public endpoints).
+ * Renews the cookie's idle window, so call it only from server actions and route handlers (they may set cookies). */
 export async function requireUser(): Promise<void> {
-  if (!(await isSignedIn((await cookies()).get(SESSION_COOKIE)?.value))) throw new SignedOutError("Not signed in");
+  const jar = await cookies();
+  const fresh = await renew(jar.get(SESSION_COOKIE)?.value);
+  if (!fresh) throw new SignedOutError("Not signed in");
+  jar.set(SESSION_COOKIE, fresh, cookieOpts("lax"));
 }
 
 /** True if the submitted key matches ADMIN_KEY. */

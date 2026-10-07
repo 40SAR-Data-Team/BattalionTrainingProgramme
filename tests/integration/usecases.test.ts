@@ -2,14 +2,14 @@
  * Use cases, end to end through the backend with a real (in-memory) Postgres and fake Google/OpenAI.
  * Each test reads as "a clerk / an admin / someone in Google Calendar does X, and Y happens".
  */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { cal, fakes } from "./setup";
 import { sql } from "@trng/backend/db";
 import { commitDrafts, createEvent, deleteEvent, listEvents, readUpload, saveEvent } from "@trng/backend/events";
 import { syncAll } from "@trng/backend/google";
 import { secret, secretSources, setSecret } from "@trng/backend/secrets";
 import { getSettings, saveSettings } from "@trng/backend/settings";
-import { checkAdminKey, checkKey, issue, revokeAll, verify } from "@trng/backend/session";
+import { checkAdminKey, checkKey, issue, renew, revokeAll, SESSION_IDLE, SESSION_MAX_AGE, verify } from "@trng/backend/session";
 import { GENERIC_ERROR, publicMessage, UserError } from "@trng/shared/errors";
 import { blankEvent } from "@trng/shared/drafts";
 import type { Event } from "@trng/shared/model";
@@ -207,6 +207,31 @@ describe("staying secure", () => {
     expect(await verify("session", good.replace(/\.\d+\./, ".9999999999999."))).toBe(false); // forged expiry
     expect(await verify("session", (await issue("session", 0))!)).toBe(false); // expired
     expect(await verify("session", "session")).toBe(false);
+  });
+
+  test("a session goes void after 15 idle minutes, renewing slides it, and 3 hours is the hard cap", async () => {
+    const t0 = Date.now(), at = (ms: number) => spyOn(Date, "now").mockReturnValue(t0 + ms);
+    try {
+      const first = (await issue("session", SESSION_MAX_AGE))!;
+      at((SESSION_IDLE - 60) * 1000);
+      const second = (await renew(first))!;
+      expect(await verify("session", second)).toBe(true);
+      at((2 * SESSION_IDLE - 120) * 1000); // 29 min in: idle 14 min since the renewal, but 29 min since the first cookie
+      expect(await verify("session", first)).toBe(false);
+      expect(await verify("session", second)).toBe(true);
+      at((SESSION_IDLE - 60 + SESSION_IDLE + 60) * 1000);
+      expect(await verify("session", second)).toBe(false); // idle > 15 min
+      expect(await renew(second)).toBeUndefined();
+      let cookie = first;
+      for (let ms = 0; ms < SESSION_MAX_AGE * 1000; ms += 600_000) { // active every 10 min, never idle
+        at(ms);
+        cookie = (await renew(cookie))!;
+      }
+      at(SESSION_MAX_AGE * 1000 + 1);
+      expect(await verify("session", cookie)).toBe(false); // the cap holds however active the user is
+    } finally {
+      spyOn(Date, "now").mockRestore();
+    }
   });
 
   test("changing the access key signs everyone out", async () => {

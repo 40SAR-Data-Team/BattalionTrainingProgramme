@@ -31,7 +31,6 @@ export type Settings = {
   upcomingDays: number;
   lookbackDays: number;
   photoMaxPx: number;
-  sessionDays: number;
 };
 
 /** A row of the `events` table. id doubles as Google's trngEventId tag; all-day end_at is the last day (inclusive);

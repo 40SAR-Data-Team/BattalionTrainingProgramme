@@ -101,7 +101,6 @@ export function SettingsForm({ initial, defaults, admin, adminConfigured, secret
               <NumberField label="Upcoming list covers (days)" value={s.upcomingDays} onChange={(v) => set("upcomingDays", v)} />
               <NumberField label="Keep past activities for (days)" value={s.lookbackDays} onChange={(v) => set("lookbackDays", v)} />
               <NumberField label="Shrink photos to (pixels, longest side)" value={s.photoMaxPx} onChange={(v) => set("photoMaxPx", v)} />
-              <NumberField label="Stay signed in for (days)" value={s.sessionDays} onChange={(v) => set("sessionDays", v)} />
             </div>
           </Section>
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isSignedIn, SESSION_COOKIE } from "@trng/backend/session";
+import { cookieOpts, isSignedIn, renew, SESSION_COOKIE } from "@trng/backend/session";
 
 /**
  * Content-Security-Policy for one response. Scripts run only with this request's nonce (Next adds it to its own
@@ -24,7 +24,9 @@ function csp(nonce: string): string {
   ].join("; ");
 }
 
-/** Sends any request without a valid session cookie to the login page, and sets a per-request CSP on every page. */
+/** Sends any request without a valid session cookie to the login page, renews the cookie's idle window, and sets a
+ * per-request CSP on every page. Server actions renew it themselves (requireUser), so the sign-out action's cookie
+ * delete can't be overwritten by a renewal set here. */
 export async function proxy(req: NextRequest) {
   const isLogin = req.nextUrl.pathname === "/login";
   if (!isLogin && !(await isSignedIn(req.cookies.get(SESSION_COOKIE)?.value))) {
@@ -35,6 +37,10 @@ export async function proxy(req: NextRequest) {
   headers.set("content-security-policy", policy); // Next reads the nonce from the request header
   const res = NextResponse.next({ request: { headers } });
   res.headers.set("content-security-policy", policy);
+  if (!isLogin && !req.headers.has("next-action")) {
+    const fresh = await renew(req.cookies.get(SESSION_COOKIE)?.value);
+    if (fresh) res.cookies.set(SESSION_COOKIE, fresh, cookieOpts("lax"));
+  }
   return res;
 }
 

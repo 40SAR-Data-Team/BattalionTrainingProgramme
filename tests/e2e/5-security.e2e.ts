@@ -57,15 +57,21 @@ test("sign-in cookies are httpOnly, expire on schedule, and Sign out ends the se
   const session = (await context.cookies()).find((c) => c.name === "session")!;
   expect(session.httpOnly).toBe(true);
   expect(session.sameSite).toBe("Lax");
-  const days = (session.expires * 1000 - Date.now()) / 86_400_000;
-  expect(days).toBeGreaterThan(29);
-  expect(days).toBeLessThanOrEqual(30);
+  expect(session.expires).toBe(-1); // browser-session cookie: gone when the browser closes (server expiry is 12 h)
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await context.cookies()).find((c) => c.name === "session")).toBeUndefined();
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("a tab opened without passing the sign-in form (a closed tab reopened) must sign in again", async ({ page, context }) => {
+  await signIn(page);
+  const reopened = await context.newPage(); // same cookie jar, empty sessionStorage
+  await reopened.goto("/");
+  await expect(reopened).toHaveURL(/\/login$/);
+  expect((await context.cookies()).find((c) => c.name === "session")).toBeUndefined();
 });
 
 test("the admin unlock is a strict, one-hour cookie", async ({ page, context }) => {

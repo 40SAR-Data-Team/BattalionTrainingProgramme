@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { getSettings } from "@trng/backend/settings";
 import { isSignedIn, SESSION_COOKIE } from "@trng/backend/session";
+import { TabGuard } from "@/components/TabSession";
 import { SettingsProvider } from "@/components/SettingsContext";
 import "./globals.css";
 
@@ -25,7 +26,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`h-full antialiased ${barlow.variable} ${condensed.variable}`}>
       <body className="stripes flex min-h-full flex-col">
         {signedIn
-          ? <SettingsProvider value={{ ...(await getSettings()), calendarOwner: "" }}>{children}</SettingsProvider>
+          ? <SettingsProvider value={{ ...(await getSettings()), calendarOwner: "" }}><TabGuard />{children}</SettingsProvider>
           : children}
       </body>
     </html>

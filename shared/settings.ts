@@ -42,7 +42,6 @@ export const DEFAULT_SETTINGS: Settings = {
   upcomingDays: 60,
   lookbackDays: 90,
   photoMaxPx: 2400,
-  sessionDays: 30,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -92,7 +91,7 @@ export function parseSettings(input: Partial<Settings>): Settings {
   check(s.categories.every((c) => /^([1-9]|1[01])$/.test(c.googleColorId)), "Google colour must be 1–11");
   checkPeriods(s.periods);
   check(EFFORTS.includes(s.aiEffort), `Reasoning effort must be one of ${EFFORTS.join(", ")}`);
-  for (const k of ["upcomingDays", "lookbackDays", "photoMaxPx", "sessionDays"] as const) {
+  for (const k of ["upcomingDays", "lookbackDays", "photoMaxPx"] as const) {
     check(Number.isInteger(s[k]) && s[k] > 0, `${k} must be a positive whole number`);
   }
   return s;
