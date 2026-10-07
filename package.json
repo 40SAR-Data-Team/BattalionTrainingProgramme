@@ -8,6 +8,7 @@
     "start": "bun run --cwd frontend start",
     "lint": "bun run --cwd frontend lint && tsc --noEmit -p .",
     "test": "bun run --cwd tests test",
+    "test:coverage": "bun test ./tests/unit ./tests/integration --coverage --coverage-reporter=lcov --coverage-reporter=text",
     "test:fast": "bun run --cwd tests test:fast",
     "test:e2e": "bun run --cwd tests e2e",
     "db:migrate": "bun database/migrate.ts"

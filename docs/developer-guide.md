@@ -162,7 +162,7 @@ on the Settings page.
 Search the code for `ponytail:` comments. Each one marks a deliberate shortcut and says when to
 upgrade it. The main ones:
 
-- Vercel caps a request body at 4.5 MB. Photos are downscaled in the browser, but large PDFs may need splitting.
+- Vercel caps a request body at 4.5 MB. Images are downscaled in the browser, but large PDFs may need splitting.
 - The programme page loads everything from the lookback window (90 days by default) onward.
 - Times are Singapore time. There is no timezone setting.
 - A failed push to Google during an upload leaves the activity app-only, and the next edit of it pushes it again.

@@ -166,7 +166,7 @@ function WeekSummary({ events, week, onOpen }: { events: Event[]; week: string; 
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-[13px] text-muted">Orange outline: the AI wasn&apos;t sure about this block. Check it against the paper copy.</p>
+        <p className="mt-3 text-[13px] text-muted">Orange outline: the AI wasn&apos;t sure about this block. Check it against the original programme.</p>
       </aside>
     </section>
   );

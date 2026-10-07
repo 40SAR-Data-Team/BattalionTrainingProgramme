@@ -34,6 +34,7 @@ export default function UploadPage() {
   const { companies, periods, photoMaxPx } = useSettings();
   const router = useRouter();
   const [company, setCompany] = useState("");
+  const [cleared, setCleared] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [drafts, setDrafts] = useState<Event[]>([]);
   const [week, setWeek] = useState<string | null>(null);
@@ -83,9 +84,13 @@ export default function UploadPage() {
             <option value="">Detect company from the page</option>
             {companies.map((c) => <option key={c.name}>{c.name}</option>)}
           </select>
-          <label className="cursor-pointer rounded-full bg-ink px-4 py-2 font-semibold text-white transition focus-within:outline-2 focus-within:outline-primary active:scale-95">
-            Choose photos or PDF
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(e) => read(e.target.files)} />
+          <label className="flex max-w-md items-start gap-2 text-[13px] text-heading">
+            <input type="checkbox" checked={cleared} onChange={(e) => setCleared(e.target.checked)} className="mt-0.5" />
+            <span>I confirm this programme is within security classification requirements to be processed by OpenAI and stored in Google Calendar.</span>
+          </label>
+          <label className={`rounded-full bg-ink px-4 py-2 font-semibold text-white transition focus-within:outline-2 focus-within:outline-primary ${cleared ? "cursor-pointer active:scale-95" : "opacity-50"}`}>
+            Choose files
+            <input type="file" multiple disabled={!cleared} accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(e) => read(e.target.files)} />
           </label>
           <button onClick={() => setEditing(blankEvent(periods, week ?? sgDate(new Date()), company ? [company] : []))}
             className="rounded-full border border-hairline px-4 py-2 font-semibold transition hover:bg-canvas active:scale-95">
@@ -116,8 +121,8 @@ export default function UploadPage() {
         {!pages.length && !drafts.length && (
           <div className="grid flex-1 place-items-center rounded-2xl border-2 border-dashed border-heading/30 bg-white/70 p-12 text-center">
             <div>
-              <p className="font-display text-[22px] font-semibold text-heading">Choose photos or a PDF of the weekly training programme</p>
-              <p className="mt-2 text-muted">One photo per company is fine. You&apos;ll review every block before anything reaches Google Calendar.</p>
+              <p className="font-display text-[22px] font-semibold text-heading">Choose the weekly training programme to upload</p>
+              <p className="mt-2 text-muted">Confirm the security classification first. One file per company is fine. You&apos;ll review every block before anything reaches Google Calendar.</p>
             </div>
           </div>
         )}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="BattalionTrainingProgramme logo">
+  <rect width="256" height="256" rx="56" fill="#b42318"/>
+  <rect x="40" y="56" width="176" height="164" rx="18" fill="#fef3c6"/>
+  <path d="M40 74a18 18 0 0 1 18-18h140a18 18 0 0 1 18 18v28H40z" fill="#7b3306"/>
+  <rect x="78" y="36" width="14" height="40" rx="7" fill="#fef3c6"/>
+  <rect x="164" y="36" width="14" height="40" rx="7" fill="#fef3c6"/>
+  <g fill="#eadfbf">
+    <rect x="58" y="116" width="40" height="22" rx="4"/>
+    <rect x="108" y="116" width="40" height="22" rx="4"/>
+    <rect x="158" y="116" width="40" height="22" rx="4"/>
+    <rect x="58" y="176" width="40" height="22" rx="4"/>
+    <rect x="158" y="176" width="40" height="22" rx="4"/>
+  </g>
+  <rect x="108" y="146" width="40" height="22" rx="4" fill="#fbe38e"/>
+  <rect x="58" y="146" width="40" height="22" rx="4" fill="#bcd5f7"/>
+  <rect x="158" y="146" width="40" height="22" rx="4" fill="#b9e6c6"/>
+  <path d="M128 176l4.7 9.5 10.5 1.5-7.6 7.4 1.8 10.4-9.4-4.9-9.4 4.9 1.8-10.4-7.6-7.4 10.5-1.5z" fill="#b42318"/>
+</svg>
