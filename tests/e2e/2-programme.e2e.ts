@@ -65,3 +65,8 @@ test("dragging an activity to another period moves it", async ({ page }) => {
   const after = await card(page, "IPPT").boundingBox();
   expect(after!.x).toBeLessThan(before!.x);
 });
+
+test("clicking the week label picks any day and jumps to its week", async ({ page }) => {
+  await page.getByLabel("Jump to week").fill("2026-01-07"); // a Wednesday
+  await expect(page.getByText("5 Jan – 11 Jan")).toBeVisible();
+});

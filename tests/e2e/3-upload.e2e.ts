@@ -7,6 +7,8 @@ test("a clerk uploads a photo, reviews the draft, fixes a block and adds it to t
   await page.waitForLoadState("networkidle"); // let the page hydrate before choosing a file
   await expect(page.locator('input[type="file"]')).toBeDisabled();
   await page.getByLabel(/within security classification requirements/).check();
+  await expect(page.locator('input[type="file"]')).toBeDisabled(); // no company chosen yet
+  await page.getByLabel("Company").selectOption("Archer");
   await page.locator('input[type="file"]').setInputFiles(PHOTO);
 
   await expect(page.getByText("Read archer-week.png: Archer: 3 blocks")).toBeVisible();

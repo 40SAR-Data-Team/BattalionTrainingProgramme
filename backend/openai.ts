@@ -1,18 +1,17 @@
 import type { Settings } from "@trng/shared/model";
-import type { Extraction } from "@trng/shared/drafts";
+import type { Block } from "@trng/shared/drafts";
 import { sgDate } from "@trng/shared/periods";
 import { UserError } from "@trng/shared/errors";
 import { secret } from "./secrets";
 
 const nullable = { type: ["string", "null"] };
 
-/** JSON schema for OpenAI structured output, built from the configured companies, categories and periods. */
+/** JSON schema for OpenAI structured output, built from the configured categories and periods. */
 export function schema(s: Settings) {
   const periodKeys = [...s.periods.map((p) => p.key), "REMARKS"];
   return {
-    type: "object", additionalProperties: false, required: ["company", "blocks"],
+    type: "object", additionalProperties: false, required: ["blocks"],
     properties: {
-      company: { type: "string", enum: [...s.companies.map((c) => c.name), "Unknown"] },
       blocks: {
         type: "array",
         items: {
@@ -31,10 +30,10 @@ export function schema(s: Settings) {
 }
 
 /**
- * Extraction instructions for one programme sheet, built from the configured grid, legend and companies.
+ * Extraction instructions for one programme sheet, built from the configured grid and legend.
  *
  * Args:
- *   s: Current settings (periods, categories, companies).
+ *   s: Current settings (periods, categories).
  *   existingTitles: Activity titles already in the database, so repeats reuse the same spelling.
  *   today: Today's date (YYYY-MM-DD), used only when the sheet shows no year.
  *
@@ -44,7 +43,6 @@ export function schema(s: Settings) {
 export function prompt(s: Settings, existingTitles: string[], today = sgDate(new Date())): string {
   const periods = s.periods.map((p) => `${p.key} = ${p.label} (${p.start}-${p.end})`).join("; ");
   const legend = s.categories.map((c) => `${c.legend} = ${c.name}`).join("; ");
-  const companies = s.companies.map((c) => `${c.name} ("${c.name[0].toUpperCase()} COMD")`).join(", ");
   return `Read this photographed weekly military training programme into calendar items. Ignore watermarks, cursors, spreadsheet
 column letters, footers and week numbers.
 
@@ -74,10 +72,6 @@ DATE: YYYY-MM-DD, year from "TRAINING PROGRAMME FOR dd/mm/yy - dd/mm/yy"; if non
 
 CATEGORY (fill colour): ${legend}. The sheet's own legend (bottom-left) wins. White fill and banners are null.
 
-COMPANY: one of ${companies}. Use the heading ("... ${s.companies[0].name.toUpperCase()} COMPANY"). If it is cut off, use the
-commander most often in COND (e.g. "${s.companies[0].name[0].toUpperCase()} COMD"; ignore shared ones like "B / C COMD") and start the
-first item's comments with "UNCERTAIN: company inferred from <text>". Otherwise "Unknown".
-
 DOUBT: infer what is reasonable silently (merged cells, glare, lanes). When genuinely ambiguous (span, unreadable text, colour between
 two categories, lane, one vs two activities), keep your best guess and start comments with "UNCERTAIN: <why>" for human review.
 Red text is tentative: "UNCERTAIN: tentative (red text)".
@@ -97,7 +91,7 @@ ${existingTitles.map((t) => `  ${t}`).join("\n") || "  (none yet)"}`;
  * Raises:
  *   Error: If the API key is missing, the API fails, or it returns no output.
  */
-export async function extract(file: { name: string; dataUrl: string }, existingTitles: string[], s: Settings): Promise<Extraction> {
+export async function extract(file: { name: string; dataUrl: string }, existingTitles: string[], s: Settings): Promise<{ blocks: Block[] }> {
   const key = await secret("OPENAI_API_KEY");
   if (!key) throw new UserError("No OpenAI API key: set it in Settings or OPENAI_API_KEY");
   const media = file.dataUrl.startsWith("data:application/pdf")

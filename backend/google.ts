@@ -1,5 +1,5 @@
 import { auth, calendar, type calendar_v3 } from "@googleapis/calendar";
-import type { Category, Event } from "@trng/shared/model";
+import type { Event } from "@trng/shared/model";
 import { addDays, sgDate, sgMidnight } from "@trng/shared/periods";
 import { publicMessage, UserError } from "@trng/shared/errors";
 import { calendarName } from "@trng/shared/settings";
@@ -79,13 +79,17 @@ export function parseDescription(text = ""): Pick<Event, "cond" | "resrc" | "cat
   return { cond: field("COND"), resrc: field("RESRC"), category: field("CATEGORY"), comments: rest.join("\n---\n") || null };
 }
 
-/** Google event resource for one company's copy of an app event; `categories` supplies the Google colour. */
-export function toGoogle(e: Event, company: string, categories: Category[]) {
+/** Google event colour per company: Banana, Tomato, Basil, Blueberry, Graphite (Google has no black).
+ * ponytail: hardcoded map, move into Settings if companies get renamed; unknown companies get the calendar default. */
+const COMPANY_COLOR: Record<string, string> = { Archer: "5", Braves: "11", Cougar: "10", Stallion: "9", Hercules: "8" };
+
+/** Google event resource for one company's copy of an app event, coloured by company (category stays in the description). */
+export function toGoogle(e: Event, company: string) {
   const when = e.all_day
     ? { start: { date: sgDate(e.start_at) }, end: { date: addDays(sgDate(e.end_at), 1) } } // Google's all-day end is exclusive
     : { start: { dateTime: e.start_at, timeZone: TZ }, end: { dateTime: e.end_at, timeZone: TZ } };
   return {
-    summary: e.title, location: e.loc ?? "", description: describe(e), colorId: categories.find((c) => c.name === e.category)?.googleColorId,
+    summary: e.title, location: e.loc ?? "", description: describe(e), colorId: COMPANY_COLOR[company],
     extendedProperties: { private: { trngEventId: e.id, company } }, ...when,
   };
 }
@@ -107,7 +111,7 @@ const pick = (g: GEvent) => ({ id: g.id!, etag: g.etag! });
 async function pushCopy(e: Event, company: string, ifMatch = true) {
   const cal = await calendarId(company);
   const copy = e.google[company];
-  const requestBody = toGoogle(e, company, (await getSettings()).categories);
+  const requestBody = toGoogle(e, company);
   if (copy) {
     try {
       const { data } = await (await api()).events.patch(

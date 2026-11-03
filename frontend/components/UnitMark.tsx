@@ -1,8 +1,7 @@
-/** The unit's name set as a badge: red tile, yellow condensed lettering — the flag's colours reversed. */
+import Image from "next/image";
+import crest from "@/assets/40sar.jpg";
+
+/** The unit crest. A static import, so it is served from /_next/static and shows on the signed-out login page too. */
 export function UnitMark({ name, className = "" }: { name: string; className?: string }) {
-  return (
-    <span aria-hidden className={`grid place-items-center rounded-[22%] bg-primary font-display font-bold tracking-tight text-canvas shadow-sm ${className}`}>
-      {name}
-    </span>
-  );
+  return <Image src={crest} alt={`${name} crest`} priority className={`h-auto object-contain ${className}`} />;
 }

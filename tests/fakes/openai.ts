@@ -1,11 +1,10 @@
-import type { Extraction } from "@trng/shared/drafts";
+import type { Block } from "@trng/shared/drafts";
 import { mondayOf, sgDate, addDays } from "@trng/shared/periods";
 
 /** A small Archer programme for the current week, as the AI would read it off a photo. */
-export function sampleExtraction(): Extraction {
+export function sampleExtraction(): { blocks: Block[] } {
   const mon = mondayOf(sgDate(new Date()));
   return {
-    company: "Archer",
     blocks: [
       { date: mon, start: "1", end: "2", title: "UPLOADED PT", cond: "PTI", loc: "PARADE SQUARE", resrc: null, category: "Physical Training", comments: null },
       { date: addDays(mon, 1), start: "3", end: "5", title: "UPLOADED MAP READING", cond: "PL COMD", loc: "CLASSROOM 2", resrc: "MAPS", category: null, comments: "UNCERTAIN: end period unclear" },
@@ -17,7 +16,7 @@ export function sampleExtraction(): Extraction {
 /** Fake OpenAI Responses API: answers POST /responses with `next()` as structured output. */
 export class FakeOpenAI {
   calls = 0;
-  next: () => Extraction = sampleExtraction;
+  next: () => { blocks: Block[] } = sampleExtraction;
 
   /** Handles one HTTP request from backend/openai.ts. */
   async handle(req: Request): Promise<Response> {

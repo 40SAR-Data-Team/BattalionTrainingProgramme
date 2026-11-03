@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mondayOf, moveTo as move, onGrid as grid, periodIndex as idx, spanToTimes as span, timesToSpan as toSpan } from "@trng/shared/periods";
+import { mondayOf, secondsLeft, moveTo as move, onGrid as grid, periodIndex as idx, spanToTimes as span, timesToSpan as toSpan } from "@trng/shared/periods";
 import { DEFAULT_SETTINGS } from "@trng/shared/settings";
 
 // Default 40SAR grid: 0, 1..10, N1..N3, ON.
@@ -41,4 +41,10 @@ test("moveTo keeps the period length and clamps at the last period", () => {
   const e = { start_at: "2026-09-15T07:00:00+08:00", end_at: "2026-09-15T08:50:00+08:00" };
   expect(moveTo(e, "2026-09-16", periodIndex("6"))).toEqual({ start_at: "2026-09-16T13:00:00+08:00", end_at: "2026-09-16T14:50:00+08:00" });
   expect(moveTo(e, "2026-09-16", periodIndex("ON")).end_at).toBe("2026-09-16T22:50:00+08:00");
+});
+
+test("time left is the average step time so far times the steps remaining", () => {
+  expect(secondsLeft(0, 5, 3000)).toBeNull(); // nothing done yet: no estimate
+  expect(secondsLeft(2, 5, 4000)).toBe(6); // 2 s per step, 3 left
+  expect(secondsLeft(5, 5, 9000)).toBe(0);
 });

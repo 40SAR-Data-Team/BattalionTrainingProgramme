@@ -98,6 +98,9 @@ export function parseSettings(input: Partial<Settings>): Settings {
 }
 
 /** Calendar name for a company, e.g. "40SAR Archer Training Program". */
+/** True when `name` is one of the configured companies. */
+export const isCompany = (s: Pick<Settings, "companies">, name: string) => s.companies.some((c) => c.name === name);
+
 export function calendarName(s: Pick<Settings, "calendarName" | "unitName">, company: string): string {
   return s.calendarName.replaceAll("{unit}", s.unitName).replaceAll("{company}", company);
 }

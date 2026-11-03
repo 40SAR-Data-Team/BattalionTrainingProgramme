@@ -3,10 +3,12 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { publicMessage, UserError } from "@trng/shared/errors";
+import { isCompany } from "@trng/shared/settings";
 import type { Event, Settings } from "@trng/shared/model";
 import * as events from "@trng/backend/events";
+import { pull } from "@trng/backend/google";
 import { setSecret, type SecretName } from "@trng/backend/secrets";
-import { saveSettings as store } from "@trng/backend/settings";
+import { getSettings, saveSettings as store } from "@trng/backend/settings";
 import {
   ADMIN_COOKIE, ADMIN_MAX_AGE, checkAdminKey, cookieOpts, issue, requireAdmin, requireUser, revokeAll, SESSION_COOKIE, SignedOutError,
 } from "@trng/backend/session";
@@ -29,6 +31,15 @@ async function act(guard: () => Promise<void>, body: () => Promise<string | void
   } finally {
     refresh();
   }
+}
+
+/** Pulls one company's Google Calendar changes into the app; the client calls it per company to show progress. */
+export async function syncCompany(company: string): Promise<Result> {
+  return act(requireUser, async () => {
+    // pull() creates a calendar for an unseen name, so only configured companies get through.
+    if (!isCompany(await getSettings(), company)) throw new UserError("Unknown company");
+    await pull(company);
+  });
 }
 
 /** Saves an edited event and writes it through to Google; on a Google-side conflict, Google wins. */

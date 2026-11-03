@@ -35,10 +35,10 @@ describe("viewing the programme", () => {
 describe("uploading a programme", () => {
   let drafts: Event[] = [];
 
-  test("a photo is read into draft blocks on the period grid, with the company detected", async () => {
-    const r = await readUpload(sample, "");
+  test("a photo is read into draft blocks on the period grid, for the company the clerk picked", async () => {
+    const r = await readUpload(sample, "Archer");
     drafts = r.drafts;
-    expect(r.company).toBe("Archer");
+    expect(drafts.every((d) => d.companies.join() === "Archer")).toBe(true);
     const pt = drafts.find((d) => d.title === "UPLOADED PT")!;
     expect(pt.start_at).toEndWith("T07:00:00+08:00"); // period 1 start
     expect(pt.end_at).toEndWith("T08:50:00+08:00"); // period 2 end
@@ -46,14 +46,14 @@ describe("uploading a programme", () => {
     expect(drafts.find((d) => d.title === "UPLOADED MAP READING")!.comments).toStartWith("UNCERTAIN");
   });
 
-  test("the clerk can override the detected company", async () => {
-    expect((await readUpload(sample, "Braves")).company).toBe("Braves");
+  test("the clerk's company wins over anything the AI returns", async () => {
+    expect((await readUpload(sample, "Braves")).drafts[0].companies).toEqual(["Braves"]);
   });
 
-  test("an unreadable company heading asks the clerk to pick one", async () => {
-    fakes.openai.next = () => ({ company: "Unknown", blocks: [] });
-    await expect(readUpload(sample, "")).rejects.toThrow("pick one");
-    fakes.openai.next = (await import("../fakes/openai")).sampleExtraction;
+  test("an upload without a chosen company is refused before the AI is called", async () => {
+    const calls = fakes.openai.calls;
+    await expect(readUpload(sample, "")).rejects.toThrow("Pick a company");
+    expect(fakes.openai.calls).toBe(calls);
   });
 
   test("committing adds every block to the company's Google Calendar", async () => {
@@ -63,7 +63,7 @@ describe("uploading a programme", () => {
   });
 
   test("uploading the same week again creates no duplicates", async () => {
-    const again = (await readUpload(sample, "")).drafts;
+    const again = (await readUpload(sample, "Archer")).drafts;
     expect(await commitDrafts(again)).toEqual({ created: 0, skipped: 3 });
     expect(fakes.google.eventsIn(cal("Archer")).filter((e) => e.summary === "UPLOADED PT")).toHaveLength(1);
   });

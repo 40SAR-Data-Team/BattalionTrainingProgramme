@@ -6,10 +6,9 @@ export type Block = {
   date: string; start: string; end: string; title: string;
   cond: string | null; loc: string | null; resrc: string | null; category: string | null; comments: string | null;
 };
-export type Extraction = { company: string; blocks: Block[] };
 
 /** Turns extracted blocks into unsaved events (period spans → times; REMARKS → all-day). */
-export function toDrafts(periods: readonly Period[], { company, blocks }: Extraction): Event[] {
+export function toDrafts(periods: readonly Period[], company: string, blocks: Block[]): Event[] {
   return blocks.map((b) => {
     const remark = b.start === "REMARKS" || b.end === "REMARKS";
     const s = remark ? 0 : periodIndex(periods, b.start);

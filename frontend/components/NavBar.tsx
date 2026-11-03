@@ -19,7 +19,7 @@ export function NavBar({ children }: { children?: React.ReactNode }) {
     <nav className="sticky top-0 z-30 border-b border-hairline bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2">
         <Link href="/" className="flex items-center gap-2.5">
-          <UnitMark name={unitName} className="h-8 px-1.5 text-[13px]" />
+          <UnitMark name={unitName} className="w-8" />
           <span className="font-display text-[19px] font-semibold tracking-tight">Training Programme</span>
         </Link>
         <div className="flex gap-1 text-[15px]">

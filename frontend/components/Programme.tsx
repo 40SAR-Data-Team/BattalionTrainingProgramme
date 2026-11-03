@@ -1,7 +1,6 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { createEvent, deleteEvent, saveEvent, type Result } from "@/app/actions";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { createEvent, deleteEvent, saveEvent, syncCompany, type Result } from "@/app/actions";
 import { blankEvent, upsert } from "@trng/shared/drafts";
 import type { Event } from "@trng/shared/model";
 import { addDays, fmtDay, mondayOf, moveTo, sgDate, timeLabel } from "@trng/shared/periods";
@@ -9,16 +8,18 @@ import { compile } from "@trng/shared/search";
 import { EventDialog } from "./EventDialog";
 import { NavBar } from "./NavBar";
 import { Notice } from "./Notice";
+import { Progress, useSteps } from "./Progress";
 import { useSettings } from "./SettingsContext";
 import { CompanyChip, Timetable, useCategoryColor } from "./Timetable";
 import { Upcoming } from "./Upcoming";
 import { WeekNav } from "./WeekNav";
 
-/** Main screen: search, company filter, week timetable or upcoming list, and the week's activities by company. */
-export function Programme({ events, syncError }: { events: Event[]; syncError: string | null }) {
+/** Main screen: search, company filter, week timetable or upcoming list, and the week's activities by day. */
+export function Programme({ events }: { events: Event[] }) {
   const settings = useSettings();
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const { steps, run: runSteps } = useSteps();
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [list, applyLocal] = useOptimistic(events, upsert);
   const [tab, setTab] = useState("All");
   const [week, setWeek] = useState(() => mondayOf(sgDate(new Date())));
@@ -48,6 +49,22 @@ export function Programme({ events, syncError }: { events: Event[]; syncError: s
       if (!r.ok) setNotice(r.message);
     });
   }
+
+  /** Pulls Google changes one company at a time; each pull re-renders the page, so events stream in. */
+  async function sync() {
+    setSyncError(null);
+    const failed: string[] = [];
+    await runSteps("Syncing with Google Calendar", settings.companies.map((c) => c.name), async (c) => {
+      const r = await syncCompany(c);
+      if (!r.ok) failed.push(`${c}: ${r.message}`);
+    });
+    if (failed.length) setSyncError(failed.join("; "));
+  }
+
+  const synced = useRef(false); // dev Strict Mode mounts twice; sync once per page load
+  useEffect(() => {
+    if (!synced.current) { synced.current = true; void sync(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Drag & drop: moves an event to (day, period), keeping its length in periods. */
   function move(id: string, day: string, period: number) {
@@ -82,12 +99,13 @@ export function Programme({ events, syncError }: { events: Event[]; syncError: s
             <button onClick={create} className="whitespace-nowrap rounded-full bg-ink px-4 py-2 text-[14px] font-semibold text-white transition active:scale-95">
               New activity
             </button>
-            <button onClick={() => startTransition(() => router.refresh())} disabled={pending}
+            <button onClick={() => void sync()} disabled={!!steps}
               className="whitespace-nowrap rounded-full bg-primary px-4 py-2 text-[14px] font-semibold text-white transition hover:bg-primary-dark active:scale-95 disabled:opacity-50">
-              {pending ? "Syncing…" : "Sync with Google"}
+              {steps ? "Syncing…" : "Sync with Google"}
             </button>
           </div>
         </section>
+        <Progress steps={steps} />
         {syncError && <Notice>Google Calendar sync failed: {syncError}. Showing the last saved programme.</Notice>}
         {notice && <Notice>{notice}</Notice>}
         {view === "Timetable"
@@ -122,38 +140,38 @@ function SearchBox({ query, onChange, error }: { query: string; onChange: (q: st
   );
 }
 
-/** NUSMods-style list under the grid: the week's activities grouped by company, plus the category legend. */
+/** NUSMods-style list under the grid: the week's activities by day in rows of three, plus the category legend. */
 function WeekSummary({ events, week, onOpen }: { events: Event[]; week: string; onOpen: (e: Event) => void }) {
-  const { companies, categories } = useSettings();
+  const { categories } = useSettings();
   const colorOf = useCategoryColor();
-  const end = addDays(week, 6);
-  const inWeek = events.filter((e) => sgDate(e.start_at) <= end && sgDate(e.end_at) >= week);
-  const day = (iso: string) => fmtDay(sgDate(iso), { weekday: "short" });
+  const byDay = Array.from({ length: 7 }, (_, i) => addDays(week, i))
+    .map((d) => [d, events.filter((e) => sgDate(e.start_at) <= d && sgDate(e.end_at) >= d).sort((a, b) => a.start_at.localeCompare(b.start_at))] as const)
+    .filter(([, es]) => es.length);
   return (
     <section className="grid gap-4 lg:grid-cols-[1fr_18rem]">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {companies.map((c) => {
-          const mine = inWeek.filter((e) => e.companies.includes(c.name));
-          if (!mine.length) return null;
-          return (
-            <div key={c.name} className="rounded-2xl border border-hairline bg-white p-4 shadow-sm">
-              <h2 className="mb-2 flex items-center justify-between"><CompanyChip name={c.name} /><span className="text-[13px] text-muted">{mine.length} activities</span></h2>
-              <ul className="divide-y divide-hairline text-[14px]">
-                {mine.map((e) => (
-                  <li key={e.id}>
-                    <button onClick={() => onOpen(e)} className="flex w-full items-baseline gap-2 py-1.5 text-left hover:text-primary">
-                      <span className="size-2.5 shrink-0 self-center rounded-full border border-black/10" style={{ background: colorOf(e) }} />
-                      <span className="w-9 shrink-0 text-muted">{day(e.start_at)}</span>
-                      <span className="w-20 shrink-0 tabular-nums text-muted">{timeLabel(e)}</span>
-                      <span className="font-medium">{e.title}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-        {!inWeek.length && <p className="rounded-2xl border border-dashed border-heading/30 bg-white/70 p-6 text-center text-muted sm:col-span-2 xl:col-span-3">
+      <div className="grid h-fit gap-4 rounded-2xl border border-hairline bg-white p-4 shadow-sm">
+        {byDay.map(([d, today]) => (
+          <div key={d}>
+            <h2 className="mb-2 font-display text-[17px] font-semibold">{fmtDay(d, { weekday: "long", day: "numeric", month: "short" })}</h2>
+            <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+              {today.map((e) => (
+                <li key={e.id}>
+                  <button onClick={() => onOpen(e)} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left text-[14px] hover:bg-canvas">
+                    <span className="mt-1 size-3.5 shrink-0 rounded border border-black/10" style={{ background: colorOf(e) }} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-primary">{e.title}</span>
+                      <span className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
+                        <span className="tabular-nums">{timeLabel(e)}</span>
+                        {e.companies.map((c) => <CompanyChip key={c} name={c} small />)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {!byDay.length && <p className="rounded-2xl border border-dashed border-heading/30 bg-white/70 p-6 text-center text-muted">
           Nothing planned this week. Add an activity, upload a programme, or move to another week.
         </p>}
       </div>

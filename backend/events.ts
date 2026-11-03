@@ -1,6 +1,7 @@
 import type { Event, Settings } from "@trng/shared/model";
-import { merge, toDrafts, withoutExisting, type Extraction } from "@trng/shared/drafts";
+import { merge, toDrafts, withoutExisting, type Block } from "@trng/shared/drafts";
 import { publicMessage, UserError } from "@trng/shared/errors";
+import { isCompany } from "@trng/shared/settings";
 import { sql } from "./db";
 import { ConflictError, deleteEverywhere, pushEvent, syncAll } from "./google";
 import { extract } from "./openai";
@@ -8,9 +9,8 @@ import { getSettings } from "./settings";
 
 /** Rejects malformed edits before they reach the DB or Google. */
 function validate(e: Event, s: Settings) {
-  const companies = s.companies.map((c) => c.name);
   if (!e.title?.trim()) throw new UserError("Title is required");
-  if (!e.companies.length || e.companies.some((c) => !companies.includes(c))) throw new UserError("Pick at least one valid company");
+  if (!e.companies.length || e.companies.some((c) => !isCompany(s, c))) throw new UserError("Pick at least one valid company");
   if (e.category && !s.categories.some((c) => c.name === e.category)) throw new UserError("Unknown category");
   if (!(new Date(e.start_at) <= new Date(e.end_at))) throw new UserError("End must be after start");
   // Same limits as the events_text_sizes check in database/schema.sql.
@@ -102,18 +102,18 @@ export async function deleteEvent(id: string): Promise<void> {
  *
  * Args:
  *   file: Upload name and data: URL.
- *   company: Company picked by the clerk, or "" to detect it from the page heading.
+ *   company: Company picked by the clerk; the AI no longer guesses it.
  *
  * Raises:
- *   Error: If the company can't be detected or the AI call fails twice.
+ *   UserError: If the company isn't a configured one.
+ *   Error: If the AI call fails twice.
  */
-export async function readUpload(file: { name: string; dataUrl: string }, company: string): Promise<{ company: string; drafts: Event[] }> {
+export async function readUpload(file: { name: string; dataUrl: string }, company: string): Promise<{ drafts: Event[] }> {
   const s = await getSettings();
+  if (!isCompany(s, company)) throw new UserError("Pick a company first");
   const titles = (await sql`select distinct title from events order by title limit 500`).map((r) => r.title as string);
-  let result: Extraction;
-  try { result = await extract(file, titles, s); }
-  catch { result = await extract(file, titles, s); } // one retry for transient/malformed output
-  if (s.companies.some((c) => c.name === company)) result.company = company;
-  if (!s.companies.some((c) => c.name === result.company)) throw new UserError("Couldn't tell which company this is — pick one and retry");
-  return { company: result.company, drafts: toDrafts(s.periods, result) };
+  let blocks: Block[];
+  try { ({ blocks } = await extract(file, titles, s)); }
+  catch { ({ blocks } = await extract(file, titles, s)); } // one retry for transient/malformed output
+  return { drafts: toDrafts(s.periods, company, blocks) };
 }

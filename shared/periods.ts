@@ -86,6 +86,10 @@ export const timeLabel = (e: { all_day: boolean; start_at: string; end_at: strin
 export const fmtDay = (date: string, opts: Intl.DateTimeFormatOptions) =>
   new Date(date + "T00:00:00Z").toLocaleDateString("en-SG", { ...opts, timeZone: "UTC" });
 
+/** Seconds left for a run of similar steps, from the average so far; null until the first step is done. */
+export const secondsLeft = (done: number, total: number, elapsedMs: number) =>
+  done ? Math.ceil(((elapsedMs / done) * (total - done)) / 1000) : null;
+
 /** Moves a timed event to (day, period), keeping its length in periods and clamping at the last period. */
 export function moveTo<T extends { start_at: string; end_at: string }>(periods: Periods, e: T, day: string, period: number): T {
   const [s, t] = timesToSpan(periods, e.start_at, e.end_at);

@@ -1,9 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Event } from "@trng/shared/model";
-import { DEFAULT_SETTINGS } from "@trng/shared/settings";
-import { describe as describeEvent, fromGoogle, parseDescription, toGoogle as g } from "@trng/backend/google";
-
-const toGoogle = (e: Event, c: string) => g(e, c, DEFAULT_SETTINGS.categories);
+import { describe as describeEvent, fromGoogle, parseDescription, toGoogle } from "@trng/backend/google";
 
 const base: Event = {
   id: "11111111-1111-1111-1111-111111111111", title: "ORIENTATION RUN", start_at: "2026-09-15T07:00:00+08:00",
@@ -22,7 +19,7 @@ test("free-text description from Google becomes comments", () => {
 test("timed event to Google and back", () => {
   const g = { id: "g1", etag: "e1", ...toGoogle(base, "Archer") };
   expect(g.extendedProperties.private.trngEventId).toBe(base.id);
-  expect(g.colorId).toBe("5");
+  expect(g.colorId).toBe("5"); // Archer = Banana
   const back = fromGoogle(g);
   expect(new Date(back.start_at).getTime()).toBe(new Date(base.start_at).getTime());
   expect(back).toMatchObject({ title: "ORIENTATION RUN", loc: "KHC", cond: "A COMD", all_day: false });
@@ -34,4 +31,8 @@ test("all-day event uses Google's exclusive end date", () => {
   expect(g.start).toEqual({ date: "2026-09-15" });
   expect(g.end).toEqual({ date: "2026-09-17" });
   expect(fromGoogle({ id: "g", etag: "e", ...g })).toMatchObject({ start_at: e.start_at, end_at: e.end_at, all_day: true });
+});
+
+test("each company's copy takes the company colour, not the yellow PT category colour", () => {
+  expect(["Archer", "Braves", "Cougar", "Stallion", "Hercules"].map((c) => toGoogle(base, c).colorId)).toEqual(["5", "11", "10", "9", "8"]);
 });

@@ -4,7 +4,7 @@ import { publicMessage } from "@trng/shared/errors";
 
 export const maxDuration = 300; // vision extraction of a dense grid can take a minute or more
 
-/** POST {name, dataUrl, company?} → {company, drafts}: one uploaded page/PDF read into unsaved events. */
+/** POST {name, dataUrl, company} → {drafts}: one uploaded page/PDF read into unsaved events. */
 export async function POST(req: Request) {
   try { await requireUser(); } catch { return Response.json({ error: "Not signed in" }, { status: 401 }); }
   const { name, dataUrl, company } = await req.json();

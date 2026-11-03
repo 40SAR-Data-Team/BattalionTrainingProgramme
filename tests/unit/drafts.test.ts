@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { merge, toDrafts as drafts, withoutExisting, type Block, type Extraction } from "@trng/shared/drafts";
+import { merge, toDrafts as drafts, withoutExisting, type Block } from "@trng/shared/drafts";
 import { DEFAULT_SETTINGS } from "@trng/shared/settings";
 
-const toDrafts = (x: Extraction) => drafts(DEFAULT_SETTINGS.periods, x);
+const toDrafts = (x: { company: string; blocks: Block[] }) => drafts(DEFAULT_SETTINGS.periods, x.company, x.blocks);
 
 const block = (b: Partial<Block>): Block => ({
   date: "2026-09-15", start: "1", end: "2", title: "ORIENTATION RUN", cond: "A COMD", loc: "KHC", resrc: null,
