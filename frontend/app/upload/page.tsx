@@ -77,11 +77,13 @@ export default function UploadPage() {
       <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-5 text-[14px]">
         <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-hairline bg-white px-4 py-3 shadow-sm">
           <h1 className="font-display text-[26px] font-bold tracking-tight text-heading">Upload a programme</h1>
-          <label className="sr-only" htmlFor="company">Company</label>
+          <label htmlFor="company" className="font-semibold text-heading">Which company&apos;s training programme are you uploading?</label>
           <select id="company" value={company} onChange={(e) => setCompany(e.target.value)} className="rounded-full border border-hairline bg-white px-3 py-2">
             <option value="" disabled>Choose company</option>
             {companies.map((c) => <option key={c.name}>{c.name}</option>)}
           </select>
+          {/* Company first: the upload controls stay hidden until one is picked. */}
+          {company && <>
           <label className="flex max-w-md items-start gap-2 text-[13px] text-heading">
             <input type="checkbox" checked={cleared} onChange={(e) => setCleared(e.target.checked)} className="mt-0.5" />
             <span>I confirm this programme is within security classification requirements to be processed by OpenAI and stored in Google Calendar.</span>
@@ -94,6 +96,7 @@ export default function UploadPage() {
             className="rounded-full border border-hairline px-4 py-2 font-semibold transition hover:bg-canvas active:scale-95">
             New activity
           </button>
+          </>}
           {drafts.length > 0 && (
             <button onClick={() => void commit()} disabled={!!steps}
               className="ml-auto rounded-full bg-primary px-5 py-2 font-semibold text-white transition hover:bg-primary-dark active:scale-95 disabled:opacity-50">
@@ -120,8 +123,8 @@ export default function UploadPage() {
         {!pages.length && !drafts.length && (
           <div className="grid flex-1 place-items-center rounded-2xl border-2 border-dashed border-heading/30 bg-white/70 p-12 text-center">
             <div>
-              <p className="font-display text-[22px] font-semibold text-heading">Choose the weekly training programme to upload</p>
-              <p className="mt-2 text-muted">Pick the company and confirm the security classification first. One file per company is fine. You&apos;ll review every block before anything reaches Google Calendar.</p>
+              <p className="font-display text-[22px] font-semibold text-heading">{company ? `Choose ${company}'s weekly training programme to upload` : "Which company's training programme are you uploading?"}</p>
+              <p className="mt-2 text-muted">Pick the company above first, then confirm the security classification first. One file per company is fine. You&apos;ll review every block before anything reaches Google Calendar.</p>
             </div>
           </div>
         )}
