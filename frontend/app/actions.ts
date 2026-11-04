@@ -6,6 +6,7 @@ import { publicMessage, UserError } from "@trng/shared/errors";
 import { isCompany } from "@trng/shared/settings";
 import type { Event, Settings } from "@trng/shared/model";
 import * as events from "@trng/backend/events";
+import { syncCet } from "@trng/backend/cet";
 import { pull } from "@trng/backend/google";
 import { setSecret, type SecretName } from "@trng/backend/secrets";
 import { getSettings, saveSettings as store } from "@trng/backend/settings";
@@ -17,7 +18,7 @@ export type Result = { ok: true; message?: string } | { ok: false; message: stri
 
 /** Runs a server action body after an auth check; turns thrown errors into a Result (only UserError text reaches
  * the browser) and re-renders the page. */
-async function act(guard: () => Promise<void>, body: () => Promise<string | void>): Promise<Result> {
+async function act(guard: () => Promise<void>, body: () => Promise<string | void>, { cet = false } = {}): Promise<Result> {
   try {
     await guard();
   } catch (err) {
@@ -29,6 +30,8 @@ async function act(guard: () => Promise<void>, body: () => Promise<string | void
   } catch (err) {
     return { ok: false, message: publicMessage(err) };
   } finally {
+    // cet: the programme may have changed, so refresh the daily CET messages; a failure here never fails the action
+    if (cet) await syncCet().catch((err) => publicMessage(err));
     refresh();
   }
 }
@@ -39,17 +42,17 @@ export async function syncCompany(company: string): Promise<Result> {
     // pull() creates a calendar for an unseen name, so only configured companies get through.
     if (!isCompany(await getSettings(), company)) throw new UserError("Unknown company");
     await pull(company);
-  });
+  }, { cet: true });
 }
 
 /** Saves an edited event and writes it through to Google; on a Google-side conflict, Google wins. */
 export async function saveEvent(e: Event): Promise<Result> {
-  return act(requireUser, () => events.saveEvent(e));
+  return act(requireUser, () => events.saveEvent(e), { cet: true });
 }
 
 /** Adds a new activity entered by hand and appends it to each company calendar. */
 export async function createEvent(e: Event): Promise<Result> {
-  return act(requireUser, () => events.createEvent(e));
+  return act(requireUser, () => events.createEvent(e), { cet: true });
 }
 
 /** Saves reviewed upload drafts and appends them to each company calendar. */
@@ -57,12 +60,12 @@ export async function commitDraft(drafts: Event[]): Promise<Result> {
   return act(requireUser, async () => {
     const { created, skipped } = await events.commitDrafts(drafts);
     return `Added ${created} events${skipped ? `, skipped ${skipped} already on the calendar` : ""}`;
-  });
+  }, { cet: true });
 }
 
 /** Deletes an event from the app and from every company calendar. */
 export async function deleteEvent(id: string): Promise<Result> {
-  return act(requireUser, () => events.deleteEvent(id));
+  return act(requireUser, () => events.deleteEvent(id), { cet: true });
 }
 
 /** Unlocks settings editing for an hour when the admin key is right. */

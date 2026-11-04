@@ -75,7 +75,10 @@ export class FakeGoogle {
     const id = parts[3];
     if (!id && req.method === "GET") {
       const token = url.searchParams.get("syncToken");
-      const items = [...cal.events.values()].filter((e) => (token ? e.seq > Number(token) : e.status !== "cancelled"));
+      const props = url.searchParams.getAll("privateExtendedProperty").map((p) => p.split("="));
+      const items = [...cal.events.values()]
+        .filter((e) => (token ? e.seq > Number(token) : e.status !== "cancelled"))
+        .filter((e) => props.every(([k, v]) => e.extendedProperties?.private?.[k] === v));
       return json({ items: items.map(strip), nextSyncToken: String(this.seq) });
     }
     if (!id && req.method === "POST") {

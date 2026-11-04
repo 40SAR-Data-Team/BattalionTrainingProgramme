@@ -18,7 +18,7 @@ let client: { key: string; api: calendar_v3.Calendar } | null = null;
 
 /** Calendar client signed in as the service account key from Settings or GOOGLE_SERVICE_ACCOUNT_KEY; retries rate limits.
  * GOOGLE_API_ROOT points it at a fake Calendar server (tests); that server takes no OAuth. */
-async function api(): Promise<calendar_v3.Calendar> {
+export async function api(): Promise<calendar_v3.Calendar> {
   const key = await secret("GOOGLE_SERVICE_ACCOUNT_KEY");
   const root = process.env.GOOGLE_API_ROOT;
   if (!key && !root) throw new UserError("No Google service account key: set it in Settings or GOOGLE_SERVICE_ACCOUNT_KEY");
@@ -46,7 +46,7 @@ function parseKey(key: string) {
 const status = (err: unknown) => (err as { status?: number }).status;
 
 /** True when the failed call's event or calendar is already gone (404/410). */
-const gone = (err: unknown) => status(err) === 404 || status(err) === 410;
+export const gone = (err: unknown) => status(err) === 404 || status(err) === 410;
 
 /** Calendar id for a company: cached in `calendars`, else found by name, else created and shared with the owner. */
 export async function calendarId(company: string): Promise<string> {
@@ -83,10 +83,13 @@ export function parseDescription(text = ""): Pick<Event, "cond" | "resrc" | "cat
  * ponytail: hardcoded map, move into Settings if companies get renamed; unknown companies get the calendar default. */
 const COMPANY_COLOR: Record<string, string> = { Archer: "5", Braves: "11", Cougar: "10", Stallion: "9", Hercules: "8" };
 
+/** Google start/end for an all-day span of inclusive "YYYY-MM-DD" days (Google's all-day end is exclusive). */
+export const allDayWhen = (first: string, last: string) => ({ start: { date: first }, end: { date: addDays(last, 1) } });
+
 /** Google event resource for one company's copy of an app event, coloured by company (category stays in the description). */
 export function toGoogle(e: Event, company: string) {
   const when = e.all_day
-    ? { start: { date: sgDate(e.start_at) }, end: { date: addDays(sgDate(e.end_at), 1) } } // Google's all-day end is exclusive
+    ? allDayWhen(sgDate(e.start_at), sgDate(e.end_at))
     : { start: { dateTime: e.start_at, timeZone: TZ }, end: { dateTime: e.end_at, timeZone: TZ } };
   return {
     summary: e.title, location: e.loc ?? "", description: describe(e), colorId: COMPANY_COLOR[company],
@@ -181,6 +184,7 @@ export async function pull(company: string): Promise<void> {
 
 /** Applies one changed Google event from a company calendar to the DB. */
 async function applyChange(company: string, g: GEvent) {
+  if (g.extendedProperties?.private?.cet) return; // a CET message (backend/cet.ts), not a programme activity
   const tag = g.extendedProperties?.private?.trngEventId;
   const [row] = (await sql`
     select * from events where id::text = ${tag ?? ""} or google -> ${company} ->> 'id' = ${g.id} limit 1`) as Event[];

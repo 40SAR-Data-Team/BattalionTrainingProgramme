@@ -4,6 +4,7 @@
  */
 import { describe, expect, spyOn, test } from "bun:test";
 import { cal, fakes } from "./setup";
+import { syncCet } from "@trng/backend/cet";
 import { sql } from "@trng/backend/db";
 import { commitDrafts, createEvent, deleteEvent, listEvents, readUpload, saveEvent } from "@trng/backend/events";
 import { syncAll } from "@trng/backend/google";
@@ -152,6 +153,23 @@ describe("keeping the app and Google Calendar in step", () => {
       const g = fakes.google.eventsIn(cal(c)).find((x) => x.summary === "ORIENTATION RUN") as unknown as { start: { dateTime: string } };
       expect(new Date(g.start.dateTime).getTime()).toBe(new Date(moved.start_at).getTime());
     }
+  });
+
+  test("each programme day gets one all-day CET in the company calendar, kept when a commander fills it in, and never imported as an activity", async () => {
+    await syncCet();
+    const cets = () => fakes.google.eventsIn(cal("Archer")).filter((x) => x.summary === "📢 CET") as unknown as
+      { id: string; description: string; start: { date: string } }[];
+    const days = new Set((await listEvents()).filter((e) => e.companies.includes("Archer")).map((e) => sgDate(e.start_at)));
+    expect(cets().map((c) => c.start.date).sort()).toEqual([...days].sort());
+    expect(cets()[0].description).toContain("*Daily CET for");
+
+    const first = cets()[0];
+    fakes.google.editInGoogle(cal("Archer"), first.id, { description: first.description.replace("CDO:", "CDO: 2LT TEST") });
+    await syncCet();
+    expect(cets().find((c) => c.id === first.id)!.description).toContain("CDO: 2LT TEST");
+
+    await syncAll();
+    expect((await listEvents()).some((e) => e.title === "📢 CET")).toBe(false);
   });
 });
 

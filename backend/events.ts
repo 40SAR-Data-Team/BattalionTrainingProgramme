@@ -19,7 +19,7 @@ function validate(e: Event, s: Settings) {
 }
 
 /** Normalises DB rows to the client `Event` shape (ISO strings for times). */
-const toEvent = (r: Record<string, unknown>) =>
+export const toEvent = (r: Record<string, unknown>) =>
   ({ ...r, start_at: new Date(r.start_at as string).toISOString(), end_at: new Date(r.end_at as string).toISOString() }) as Event;
 
 /** Events ending within the sync lookback window or later, soonest first.
