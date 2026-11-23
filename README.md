@@ -111,6 +111,29 @@ Good to know:
 > **Check the result.** The AI reads an uploaded document. Times, names and locations
 > can occasionally be misread. Compare anything odd against the original programme.
 
+## Conflict Checker
+
+The **Conflict Checker** tab lists every pair of activities, from this week on, that use the same **location (LOC)**
+at overlapping times. Locations match ignoring capital letters and extra spaces ("Range 3" and "range  3" are the same).
+Activities that only touch (one ends as the next starts) and all-day remarks are not clashes. Fix a clash on the
+**Training Programme** tab, then open the Conflict Checker again.
+
+## Training Planner
+
+The **Training Planner** tab works out a programme for you. It is separate from the Training Programme: nothing here
+reaches Google Calendar.
+
+1. Pick a company and press **New training**, or **Import CSV** (a BattalionSAT plan; companies may be written A, B, C…).
+   Give each training an id, its length in periods (or **Whole day**), and what it books: COND, LOC and RESRC.
+   `/` means any one of (`RANGE_1/RANGE_2`); `,` means all of (`MEDIC,5TONS`).
+2. Add **Rules**, separated by `;`, for example `after:IMT+1d;by:2026-08-31`. Put `?` in front for a preference.
+3. Drag a training onto the grid to place it yourself. Tick **Locked** in its dialog so Optimise never moves it.
+4. Set the **solve window** (From, To, and whether weekends count) and press **Optimise**. Unplaced trainings, and
+   unlocked ones inside the window, are placed so no company, location, instructor or resource is double-booked.
+5. If the rules can't all be met, the planner names the rules that clash. Change one and optimise again.
+6. **Export Excel** prints the shown company's programme for the window, one sheet per week. **Export CSV** saves the
+   plan for BattalionSAT.
+
 ## Settings (admins)
 
 Anyone signed in can see **Settings**. To change them, type the **admin key** and press

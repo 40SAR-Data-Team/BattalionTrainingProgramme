@@ -11,11 +11,13 @@ Code is split by feature. `common/` holds what every tab uses. A feature folder 
 
 | Folder | Package | Owns | May import |
 |---|---|---|---|
-| `shared/common/` | `@trng/shared` | Pure, client-safe code: `model.ts` (types), `settings.ts` (defaults + validation), `periods.ts` (grid ⇄ times), `errors.ts` (`UserError`, `publicMessage`) | nothing |
+| `shared/common/` | `@trng/shared` | Pure, client-safe code: `model.ts` (types), `settings.ts` (defaults + validation), `periods.ts` (grid ⇄ times), `errors.ts` (`UserError`, `publicMessage`), `clash.ts` (`clashes()`: same key + overlapping time; used by the Conflict Checker and the planner check) | nothing |
 | `shared/programme/` | `@trng/shared` | `drafts.ts` (draft/merge/de-dupe), `search.ts` (query language), `cet.ts` (daily CET text) | `shared/common` |
+| `shared/planner/` | `@trng/shared` | `rules.ts` (Training, rule syntax, BattalionSAT CSV), `check.ts` (independent verifier; shares no code with the solver) | `shared/common` |
 | `backend/common/` | `@trng/backend` | Server-only: `db.ts` (Neon only), `settings.ts` (load/save), `secrets.ts` (encrypted keys), `session.ts` (sign-in + admin), `events.ts` (read-only: `listEvents`, `toEvent`) | `shared/common` |
 | `backend/programme/` | `@trng/backend` | `google.ts` (Calendar push/pull), `openai.ts` (prompt + call), `events.ts` (writes: save, create, commit, delete, read upload; create reuses commit's validation and de-dupe), `cet.ts` (CET sync) | `common`, `shared/programme` |
-| `frontend/` | `@trng/frontend` | Next app. `app/act.ts` (`act()` + `Result`, used by every feature's server actions), `app/actions.ts` (sign out). Routes per feature: `app/(programme)/` (route group: `/`, `/upload`, `/api/extract`, its `actions.ts`), `app/settings/` (page + `actions.ts`), `app/login/`. UI in `components/<feature>/`; `components/common/` holds NavBar, Timetable, WeekNav, EventDialog, Notice, Progress, SettingsContext, UnitMark, TabSession. `proxy.ts` (auth gate) | `shared`; `backend` from server files only |
+| `backend/planner/` | `@trng/backend` | `solve.ts` (CP-SAT model, solve window, per-rule blame), `store.ts` (plan in `settings` row `planner`), `excel.ts` (printed programme) | `common`, `shared/planner` |
+| `frontend/` | `@trng/frontend` | Next app. `app/act.ts` (`act()` + `Result`, used by every feature's server actions), `app/actions.ts` (sign out). Routes per feature: `app/(programme)/` (route group: `/`, `/upload`, `/api/extract`, its `actions.ts`), `app/conflicts/` (Conflict Checker), `app/planner/` (Training Planner + `actions.ts`), `app/settings/` (page + `actions.ts`), `app/login/`. UI in `components/<feature>/`; `components/common/` holds NavBar, Timetable, WeekNav, EventDialog, Notice, Progress, SettingsContext, UnitMark, TabSession. `proxy.ts` (auth gate) | `shared`; `backend` from server files only |
 | `database/` | none | `schema.sql` (idempotent, the only migration), `seed.sql` (dummy week, loaded only by the test fakes), `migrate.ts` | `backend/common/db.ts` |
 | `tests/` | `@trng/tests` | `unit/<feature>/`, `integration/<feature>/` (fakes), `e2e/` (Playwright), `fakes/` (Neon, Google, OpenAI HTTP fakes; PGlite lives only here) | everything |
 
@@ -47,6 +49,13 @@ Client components (`"use client"`) must not import `@trng/backend` except with `
   and returns a generic message.
 - **Database**: the app runs as `trngprgm_app` (row read/write on its tables only). `database/migrate.ts` runs as the
   owner (`DATABASE_OWNER_URL`). `schema.sql` grants the app role and holds the `events` check constraints.
+- **Conflict Checker** reads saved events (`backend/common/events.ts`) from this week on and lists pairs with the same
+  normalised LOC at overlapping times. It never writes.
+- **Training Planner** owns its data: one jsonb row (`settings` key `planner`); it never reads or writes `events` or
+  Google. `optimise()` runs CP-SAT in WASM (`cp-sat-wasm`, pinned) on this server with the worker executor, never the
+  cloud executor; `cp-sat-wasm` is in `serverExternalPackages` (`next.config.ts`) because it loads its worker by path.
+  Unplaced trainings and unlocked ones inside the window are placed; locked and out-of-window ones are constants. Each
+  rule has its own literal, so an impossible plan reports the clashing rules. The plan CSV is BattalionSAT's format.
 - New event attributes go in `events.attrs` (jsonb) until they need their own column. Schema
   changes go in `schema.sql` as `if not exists` statements.
 - Test seams are environment, not code paths: `NEON_FETCH_ENDPOINT` sends Neon queries to the fake Neon (PGlite),
