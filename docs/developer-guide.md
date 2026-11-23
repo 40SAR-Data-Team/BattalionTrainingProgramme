@@ -99,8 +99,8 @@ an integration test. To simulate someone using Google Calendar, use
 
 - `settings` holds one row (`key = 'app'`) with the whole `Settings` object. It is validated by
   `parseSettings()` and merged over `DEFAULT_SETTINGS`, so an empty table means factory defaults.
-- **Adding a setting:** add the field to `Settings` in `shared/model.ts`, then its default and a
-  check in `shared/settings.ts`, then a control in `frontend/components/SettingsForm.tsx`. Read it
+- **Adding a setting:** add the field to `Settings` in `shared/common/model.ts`, then its default and a
+  check in `shared/common/settings.ts`, then a control in `frontend/components/SettingsForm.tsx`. Read it
   with `getSettings()` (server) or `useSettings()` (client). Add a unit test for its validation.
 - `secrets` holds AES-256-GCM ciphertext. The key is HKDF(`ADMIN_KEY`). Values are cached for 30
   seconds per server instance, because the auth proxy reads `ACCESS_KEY` on every request.
@@ -118,7 +118,7 @@ alter or drop tables, or manage roles, so a bug or injected query in the app can
 
 The database also refuses impossible activities: end before start, no companies, or over-long text
 (`events_times`, `events_companies`, `events_text_sizes`). They are `not valid` constraints, so old rows never
-block a migration. The text limits match `validate()` in `backend/events.ts`.
+block a migration. The text limits match `validate()` in `backend/programme/events.ts`.
 
 ## Security model
 
@@ -129,7 +129,7 @@ block a migration. The text limits match `validate()` in `backend/events.ts`.
 - **Headers**: `proxy.ts` sets a per-request nonce CSP (`script-src 'nonce-…' 'strict-dynamic'`,
   `frame-ancestors 'none'`). `next.config.ts` adds HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy` and
   `Permissions-Policy`. Inline `style` attributes stay allowed because React needs them.
-- **Errors**: only `UserError` messages (`shared/errors.ts`) reach the browser. Anything else is logged on the
+- **Errors**: only `UserError` messages (`shared/common/errors.ts`) reach the browser. Anything else is logged on the
   server and shown as a generic message. Throw `UserError` for anything the user should read.
 - Tests: `tests/integration` (cookies, revocation, constraints, the app role) and `tests/e2e/5-security.e2e.ts`
   (CSP blocks injected script, headers, forged cookies, sign out, sign everyone out).

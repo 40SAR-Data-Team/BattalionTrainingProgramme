@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getSettings } from "@trng/backend/settings";
-import { checkKey, cookieOpts, issue, SESSION_COOKIE, SESSION_MAX_AGE } from "@trng/backend/session";
-import { LoginForm, SignInButton } from "@/components/TabSession";
-import { UnitMark } from "@/components/UnitMark";
+import { getSettings } from "@trng/backend/common/settings";
+import { checkKey, cookieOpts, issue, SESSION_COOKIE, SESSION_MAX_AGE } from "@trng/backend/common/session";
+import { LoginForm, SignInButton } from "@/components/common/TabSession";
+import { UnitMark } from "@/components/common/UnitMark";
 
 /** Sets the session cookie when the access key is right; otherwise back to the form with an error. */
 async function login(form: FormData) {

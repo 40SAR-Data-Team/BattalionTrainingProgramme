@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { getSettings } from "@trng/backend/settings";
-import { isSignedIn, SESSION_COOKIE } from "@trng/backend/session";
-import { TabGuard } from "@/components/TabSession";
-import { SettingsProvider } from "@/components/SettingsContext";
+import { getSettings } from "@trng/backend/common/settings";
+import { isSignedIn, SESSION_COOKIE } from "@trng/backend/common/session";
+import { TabGuard } from "@/components/common/TabSession";
+import { SettingsProvider } from "@/components/common/SettingsContext";
 import "./globals.css";
 
 const barlow = Barlow({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-barlow" });
