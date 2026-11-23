@@ -8,6 +8,7 @@ import { UnitMark } from "@/components/common/UnitMark";
 const LINKS = [
   { href: "/", label: "Training Programme" },
   { href: "/conflicts", label: "Conflict Checker" },
+  { href: "/planner", label: "Training Planner" },
   { href: "/upload", label: "Upload" },
   { href: "/settings", label: "Settings" },
 ];
