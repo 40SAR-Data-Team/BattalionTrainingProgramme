@@ -28,7 +28,7 @@ test("an admin renames the unit, adds a company, and the programme page follows"
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("Settings saved")).toBeVisible();
 
-  await page.getByRole("link", { name: "Programme", exact: true }).click();
+  await page.getByRole("link", { name: "Training Programme", exact: true }).click();
   await expect(page.getByRole("navigation")).toContainText("41SAR");
   await expect(page.getByRole("group", { name: "Company" }).getByRole("button", { name: "Scorpion" })).toBeVisible();
 });

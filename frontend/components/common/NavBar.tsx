@@ -6,7 +6,8 @@ import { useSettings } from "@/components/common/SettingsContext";
 import { UnitMark } from "@/components/common/UnitMark";
 
 const LINKS = [
-  { href: "/", label: "Programme" },
+  { href: "/", label: "Training Programme" },
+  { href: "/conflicts", label: "Conflict Checker" },
   { href: "/upload", label: "Upload" },
   { href: "/settings", label: "Settings" },
 ];
