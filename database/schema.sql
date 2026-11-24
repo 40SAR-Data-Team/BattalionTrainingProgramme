@@ -29,7 +29,7 @@ create table if not exists events (
 create index if not exists events_start_at on events (start_at);
 
 -- User-adjustable settings from the Settings page. Key 'app' holds the whole Settings object;
--- missing fields fall back to DEFAULT_SETTINGS in shared/settings.ts.
+-- missing fields fall back to DEFAULT_SETTINGS in shared/common/settings.ts.
 create table if not exists settings (
   key text primary key,
   value jsonb not null,
@@ -45,7 +45,7 @@ create table if not exists secrets (
 );
 
 -- Sanity limits on activities. NOT VALID: enforced on new and changed rows only, so old data never blocks a migration.
--- The text limits match validate() in backend/events.ts.
+-- The text limits match validate() in backend/programme/events.ts.
 do $$ begin
   alter table events add constraint events_times check (end_at >= start_at) not valid;
 exception when duplicate_object then null; end $$;

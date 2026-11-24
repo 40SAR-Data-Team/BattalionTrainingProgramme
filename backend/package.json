@@ -8,7 +8,9 @@
   "dependencies": {
     "@googleapis/calendar": "^20.0.1",
     "@neondatabase/serverless": "^1.1.0",
-    "@trng/shared": "workspace:*"
+    "@trng/shared": "workspace:*",
+    "cp-sat-wasm": "2.0.1",
+    "exceljs": "4.4.0"
   },
   "devDependencies": {
     "@types/react": "^19"

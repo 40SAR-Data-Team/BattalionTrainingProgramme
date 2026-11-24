@@ -1,9 +1,9 @@
-import { secretSources } from "@trng/backend/secrets";
-import { getSettings } from "@trng/backend/settings";
-import { isAdmin } from "@trng/backend/session";
-import { DEFAULT_SETTINGS } from "@trng/shared/settings";
-import { NavBar } from "@/components/NavBar";
-import { SettingsForm } from "@/components/SettingsForm";
+import { secretSources } from "@trng/backend/common/secrets";
+import { getSettings } from "@trng/backend/common/settings";
+import { isAdmin } from "@trng/backend/common/session";
+import { DEFAULT_SETTINGS } from "@trng/shared/common/settings";
+import { NavBar } from "@/components/common/NavBar";
+import { SettingsForm } from "@/components/settings/SettingsForm";
 
 /** Settings: anyone signed in can read; editing needs the admin key. Secrets are write-only. */
 export default async function SettingsPage() {

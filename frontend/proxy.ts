@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { cookieOpts, isSignedIn, renew, SESSION_COOKIE } from "@trng/backend/session";
+import { cookieOpts, isSignedIn, renew, SESSION_COOKIE } from "@trng/backend/common/session";
 
 /**
  * Content-Security-Policy for one response. Scripts run only with this request's nonce (Next adds it to its own

@@ -18,7 +18,7 @@ process.env.NEON_FETCH_ENDPOINT = fakes.neonEndpoint;
 afterAll(() => fakes.stop());
 
 await fakes.neon.seed();
-const { saveSettings } = await import("@trng/backend/settings");
+const { saveSettings } = await import("@trng/backend/common/settings");
 await saveSettings({ calendarOwner: "owner@example.com" });
 
 /** Name of a company's calendar under the default template. */

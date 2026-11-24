@@ -1,5 +1,5 @@
-import type { Block } from "@trng/shared/drafts";
-import { mondayOf, sgDate, addDays } from "@trng/shared/periods";
+import type { Block } from "@trng/shared/programme/drafts";
+import { mondayOf, sgDate, addDays } from "@trng/shared/common/periods";
 
 /** A small Archer programme for the current week, as the AI would read it off a photo. */
 export function sampleExtraction(): { blocks: Block[] } {

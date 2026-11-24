@@ -12,6 +12,8 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // CP-SAT loads its WASM and worker by dynamic path, which bundlers can't follow; Node loads it from node_modules.
+  serverExternalPackages: ["cp-sat-wasm"],
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
