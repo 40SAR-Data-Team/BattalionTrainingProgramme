@@ -1,7 +1,12 @@
-import { expect, test } from "bun:test";
+import { expect, setDefaultTimeout, test } from "bun:test";
 import { DEFAULT_SETTINGS } from "@trng/shared/common/settings";
 import type { Training } from "@trng/shared/planner/rules";
 import { optimise } from "@trng/backend/planner/solve";
+
+// CP-SAT loads its WASM in a worker on first use (several seconds on a busy machine) and a solve may run up to its
+// 30s time limit. Bun's 5s default would time a test out while its solve keeps running in the shared worker, and the
+// tests after it would then fail too.
+setDefaultTimeout(60_000);
 
 const { periods } = DEFAULT_SETTINGS;
 const t = (over: Partial<Training>): Training => ({
