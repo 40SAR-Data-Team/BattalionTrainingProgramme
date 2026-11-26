@@ -51,14 +51,14 @@ export function Programme({ events }: { events: Event[] }) {
     });
   }
 
-  /** Pulls Google changes one company at a time; each pull re-renders the page, so events stream in. */
+  /** Pulls every company's Google changes at once; each finished pull re-renders the page, so events stream in. */
   async function sync() {
     setSyncError(null);
     const failed: string[] = [];
     await runSteps("Syncing with Google Calendar", settings.companies.map((c) => c.name), async (c) => {
       const r = await syncCompany(c);
       if (!r.ok) failed.push(`${c}: ${r.message}`);
-    });
+    }, true);
     if (failed.length) setSyncError(failed.join("; "));
   }
 

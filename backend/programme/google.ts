@@ -155,8 +155,15 @@ export async function deleteEverywhere(e: Event) {
   for (const [company, copy] of Object.entries(e.google)) await deleteCopy(company, copy);
 }
 
-/** Incremental pull of one company calendar into the DB; Google wins on every change it reports. */
-export async function pull(company: string): Promise<void> {
+/** Runs `fn` over `items`, at most `n` at a time (Google rate limits are retried by api()). */
+export async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  await Promise.all(Array.from({ length: Math.min(n, queue.length) }, async () => { while (queue.length) await fn(queue.shift()!); }));
+}
+
+/** Incremental pull of one company calendar into the DB; Google wins on every change it reports.
+ * Returns true when Google reported a programme change (CET messages don't count), so callers can skip follow-up work. */
+export async function pull(company: string): Promise<boolean> {
   const cal = await calendarId(company);
   const [{ sync_token }] = await sql`select sync_token from calendars where company = ${company}`;
   const { lookbackDays } = await getSettings();
@@ -180,6 +187,7 @@ export async function pull(company: string): Promise<void> {
 
   for (const g of changes) await applyChange(company, g);
   await sql`update calendars set sync_token = ${nextSyncToken} where company = ${company}`;
+  return changes.some((g) => !g.extendedProperties?.private?.cet);
 }
 
 /** Applies one changed Google event from a company calendar to the DB. */
