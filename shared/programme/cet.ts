@@ -6,42 +6,36 @@ import { fmtDay, hhmm } from "../common/periods";
 
 const SEP = "——————————————————";
 const ROSTER = ["CDO", "CDS", "PDS(PLT 1)", "PDS(PLT 2)", "A/S IC", "SIGNAL IC"].map((k) => `${k}:`);
-const DUTY = ["*Duty Bunk:*", "Morning Flag Duty:", "Evening Flag Duty:"];
-const MORNING = ["Reveille", "Breakfast"];
-const EVENING = ["Lunch", "Dinner", "Last Parade", "Lights Out"];
-const BLANKS = new Set([...ROSTER, ...DUTY, ...MORNING, ...EVENING]);
+const DUTY = ["Duty Bunk:"];
+const FIXED = ["1130 LUNCH", "1730 DINNER", "2200 LIGHTS OUT"];
+const BLANKS = new Set([...ROSTER, ...DUTY, ...FIXED]);
 
 /** "Reveille" from "0550 Reveille", "CDO" from "CDO: 2LT X". */
 const key = (line: string) => line.replace(/^\d{4}\s+/, "").split(":")[0].trim();
 
 const KEYS = new Set([...BLANKS].map(key));
 
-/** One programme event: "HHMM Title @ Loc" plus its attire, items and comment lines. */
-function entry(e: Event): string[] {
-  const head = `${e.all_day ? "" : hhmm(e.start_at) + " "}${e.title}${e.loc ? ` @ ${e.loc}` : ""}`;
-  return [
-    head,
-    ...(e.cond ? [`> Attire: ${e.cond}`] : []),
-    ...(e.resrc ? [`> Items to Bring: ${e.resrc}`] : []),
-    ...(e.comments ?? "").split("\n").filter(Boolean).map((l) => `> ${l}`),
-  ];
-}
+/** One programme event: "HHMM Title @ Loc". */
+const entry = (e: Event) => `${e.all_day ? "" : hhmm(e.start_at) + " "}${e.title}${e.loc ? ` @ ${e.loc}` : ""}`;
+const timed = (l: string) => Number(/^\d{4} /.test(l));
 
 /** CET text for one "YYYY-MM-DD" day from that day's events. */
 export function buildCet(day: string, events: Event[]): string {
   const [y, m, d] = day.split("-");
-  const sorted = [...events].sort((a, b) => Number(!a.all_day) - Number(!b.all_day) || a.start_at.localeCompare(b.start_at));
-  const blocks = [...MORNING.map((s) => [s]), ...sorted.map(entry), ...EVENING.map((s) => [s])];
+  // ponytail: dedupe on "HHMM Title", keeping the longer heading (the one with "@ loc"); fix duplicate rows at ingest if they spread
+  const lines = new Map<string, string>();
+  for (const h of [...events.map(entry), ...FIXED]) if ((lines.get(h.split(" @ ")[0])?.length ?? 0) < h.length) lines.set(h.split(" @ ")[0], h);
+  const body = [...lines.values()].sort((a, b) => timed(a) - timed(b) || a.localeCompare(b));
   return [
     `*Daily CET for ${fmtDay(day, { weekday: "long" })} ${d}${m}${y.slice(2)}*`, "",
-    ...ROSTER, "", DUTY[0], "", DUTY[1], DUTY[2], "", SEP, "",
-    ...blocks.flatMap((b) => [...b, ""]),
+    ...ROSTER, "", ...DUTY, "", SEP, "",
+    ...body.flatMap((l) => [l, ""]),
     SEP, "", "Note:", "1.",
   ].join("\n");
 }
 
 /** Copies commanders' filled-in roster/duty/slot lines from the old CET text into a regenerated one.
- * ponytail: matches by label, so a programme event titled like a fixed slot ("Lunch") can be mistaken for it. */
+ * ponytail: matches by label, so a programme event titled like a fixed slot ("LUNCH") can be mistaken for it. */
 export function keepFilled(old: string | null | undefined, next: string): string {
   const filled = new Map<string, string>();
   for (const l of (old ?? "").split("\n")) if (KEYS.has(key(l)) && !BLANKS.has(l) && !l.startsWith(">")) filled.set(key(l), l);
