@@ -10,11 +10,12 @@ const TITLE = "📢 CET";
 
 /** Brings every company calendar's CET all-day events in line with the programme: one per day that has activities,
  * written only when its text changed, and removed when its day has none. Idempotent, so it also backfills.
+ * `only` limits it to those companies' calendars; omitted, it does all of them.
  * ponytail: a multi-day activity counts on its start day only; per-day fan-out if CET must show it on every day. */
-export async function syncCet(): Promise<void> {
+export async function syncCet(only?: string[]): Promise<void> {
   const { companies, lookbackDays } = await getSettings();
   const g = await api();
-  for (const { name } of companies) {
+  for (const { name } of companies.filter((c) => !only || only.includes(c.name))) {
     const cal = await calendarId(name);
     const rows = await sql`
       select * from events where ${name} = any(companies) and end_at >= now() - make_interval(days => ${lookbackDays})`;

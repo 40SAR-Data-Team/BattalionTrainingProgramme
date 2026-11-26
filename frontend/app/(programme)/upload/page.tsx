@@ -63,7 +63,8 @@ export default function UploadPage() {
   /** Saves the reviewed draft a few events at a time (so progress shows) and appends them to the company calendars. */
   async function commit() {
     setMessage(null);
-    const chunks = Array.from({ length: Math.ceil(drafts.length / 5) }, (_, i) => drafts.slice(i * 5, i * 5 + 5));
+    // 20 per chunk: the server pushes each chunk 8 at a time, and every chunk ends with one CET refresh.
+    const chunks = Array.from({ length: Math.ceil(drafts.length / 20) }, (_, i) => drafts.slice(i * 20, i * 20 + 20));
     // Chunks run one after another (so commitDrafts' duplicate check sees earlier ones); a throw stops the rest.
     await run(`Adding ${drafts.length} activities to Google Calendar`, chunks, async (c) => {
       const r = await commitDraft(c);

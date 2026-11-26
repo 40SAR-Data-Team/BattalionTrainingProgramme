@@ -4,7 +4,7 @@ import { publicMessage, UserError } from "@trng/shared/common/errors";
 import { isCompany } from "@trng/shared/common/settings";
 import { sql } from "../common/db";
 import { toEvent } from "../common/events";
-import { ConflictError, deleteEverywhere, pushEvent, syncAll } from "./google";
+import { calendarId, ConflictError, deleteEverywhere, pool, pushEvent, syncAll } from "./google";
 import { extract } from "./openai";
 import { getSettings } from "../common/settings";
 
@@ -19,8 +19,9 @@ function validate(e: Event, s: Settings) {
   if (long) throw new UserError("Text is too long: title up to 500 characters, COND/LOC/RESRC 1000, comments 20000");
 }
 
-/** Saves an edited event and writes it through to Google. On a Google-side conflict Google wins: it re-syncs and throws. */
-export async function saveEvent(e: Event): Promise<void> {
+/** Saves an edited event and writes it through to Google. On a Google-side conflict Google wins: it re-syncs and throws.
+ * Returns the companies it was on before or after the edit, whose CET messages may need refreshing. */
+export async function saveEvent(e: Event): Promise<string[]> {
   validate(e, await getSettings());
   const [prev] = (await sql`select * from events where id = ${e.id}`) as Event[];
   if (!prev) throw new UserError("This event no longer exists");
@@ -36,6 +37,7 @@ export async function saveEvent(e: Event): Promise<void> {
     await syncAll(); // Google's version overwrites the local edit
     throw new UserError(`${err.message} — showing the latest version`);
   }
+  return [...new Set([...prev.companies, ...e.companies])];
 }
 
 /**
@@ -62,9 +64,14 @@ export async function commitDrafts(drafts: Event[]): Promise<{ created: number; 
       insert into events (id, title, start_at, end_at, all_day, cond, loc, resrc, comments, category, companies)
       values (${e.id}, ${e.title.trim()}, ${e.start_at}, ${e.end_at}, ${e.all_day}, ${e.cond || null}, ${e.loc || null},
               ${e.resrc || null}, ${e.comments || null}, ${e.category || null}, ${e.companies})`;
-    // ponytail: a failed push leaves the row app-only; the next edit of that event pushes it again.
-    try { await pushEvent({ ...e, google: {} }); } catch (err) { failed.push(`${e.title}: ${publicMessage(err)}`); }
   }
+  // Find or create each calendar once up front, so the parallel pushes below can't race to create the same one.
+  for (const c of new Set(fresh.flatMap((e) => e.companies))) await calendarId(c);
+  // ponytail: a failed push leaves the row app-only; the next edit of that event pushes it again.
+  // 8 at a time stays under Google's per-user rate limit; raise it if uploads are still slow and no 403/429s show up.
+  await pool(fresh, 8, async (e) => {
+    try { await pushEvent({ ...e, google: {} }); } catch (err) { failed.push(`${e.title}: ${publicMessage(err)}`); }
+  });
   if (failed.length) throw new UserError(`Saved, but ${failed.length} failed to reach Google Calendar: ${failed[0]}`);
   return { created: fresh.length, skipped: merged.length - fresh.length };
 }
@@ -79,11 +86,12 @@ export async function createEvent(e: Event): Promise<void> {
   if (!(await commitDrafts([e])).created) throw new UserError("That activity is already on the calendar");
 }
 
-/** Deletes an event from the app and from every company calendar. */
-export async function deleteEvent(id: string): Promise<void> {
+/** Deletes an event from the app and from every company calendar; returns the companies it was on. */
+export async function deleteEvent(id: string): Promise<string[]> {
   const [e] = (await sql`select * from events where id = ${id}`) as Event[];
   if (e) await deleteEverywhere(e);
   await sql`delete from events where id = ${id}`;
+  return e?.companies ?? [];
 }
 
 /**
