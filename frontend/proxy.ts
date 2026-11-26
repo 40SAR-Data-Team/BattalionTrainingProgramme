@@ -44,5 +44,6 @@ export async function proxy(req: NextRequest) {
   return res;
 }
 
-// Everything except static assets. The login page passes through without a session but still gets the CSP.
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+// Everything except static assets and Vercel Analytics / Speed Insights (/_vercel/*). The login page passes through
+// without a session but still gets the CSP.
+export const config = { matcher: ["/((?!_next/static|_next/image|_vercel|favicon.ico).*)"] };
