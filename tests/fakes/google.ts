@@ -3,7 +3,9 @@
  * events list (with syncToken), insert, patch (If-Match → 412) and delete. Point the app at it with GOOGLE_API_ROOT.
  */
 
-type GEvent = Record<string, unknown> & { id: string; etag: string; status: string; seq: number };
+type GEvent = Record<string, unknown> & {
+  id: string; etag: string; status: string; seq: number; extendedProperties?: { private?: Record<string, string> };
+};
 type Calendar = { id: string; summary: string; owners: string[]; events: Map<string, GEvent> };
 
 export class FakeGoogle {

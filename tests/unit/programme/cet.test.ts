@@ -9,18 +9,20 @@ const run: Event = {
 };
 
 test("a day's programme becomes a CET with blank roster, blank fixed slots and the activity's details", () => {
-  const cet = buildCet("2026-11-05", [run]);
+  const cet = buildCet("2026-11-05", [{ ...run, loc: null }, run]);
   expect(cet).toStartWith("*Daily CET for Thursday 051126*\n\nCDO:\nCDS:");
-  expect(cet).toContain("\nReveille\n\nBreakfast\n\n0730 Metabolic Circuit 7 @ 40SAR Parade Square\n> Attire: Running Attire\n> Items to Bring: Full Admin Bottle\n> Transition from FP\n\nLunch\n");
+  expect(cet).toContain("\nDuty Bunk:\n\n——————————————————\n\n0730 Metabolic Circuit 7 @ 40SAR Parade Square\n\n1130 LUNCH\n\n1730 DINNER\n\n2200 LIGHTS OUT\n\n——");
+  expect(cet.match(/Metabolic/g)).toHaveLength(1);
+  expect(cet).not.toContain("> Attire");
   expect(cet).toEndWith("Note:\n1.");
 });
 
 test("regenerating a CET keeps what commanders filled in", () => {
-  const edited = buildCet("2026-11-05", [run]).replace("CDO:", "CDO: 2LT JOEN CHUA").replace("\nReveille", "\n0550 Reveille").replace("*Duty Bunk:*", "*Duty Bunk: P2B4*");
+  const edited = buildCet("2026-11-05", [run]).replace("CDO:", "CDO: 2LT JOEN CHUA").replace("1130 LUNCH", "1200 LUNCH").replace("Duty Bunk:", "Duty Bunk: P2B4");
   const next = keepFilled(edited, buildCet("2026-11-05", [{ ...run, title: "Run" }]));
   expect(next).toContain("CDO: 2LT JOEN CHUA");
-  expect(next).toContain("\n0550 Reveille\n");
-  expect(next).toContain("*Duty Bunk: P2B4*");
+  expect(next).toContain("\n1200 LUNCH\n");
+  expect(next).toContain("Duty Bunk: P2B4");
   expect(next).toContain("0730 Run @");
   expect(next).toContain("\nCDS:\n");
 });
